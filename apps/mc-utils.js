@@ -9,8 +9,8 @@ const __dirname = path.dirname(__filename);
 
 // 数据目录和文件路径
 const YUNZAI_DIR = path.join(__dirname, '..', '..', '..');  // Yunzai-Bot 根目录
+const PLUGIN_DIR = path.join(__dirname, '..');  // 插件根目录
 const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目录
-const CONFIG_FILE = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin', 'config', 'mctool.yaml');  // 配置文件路径
 
 // 确保目录存在
 if (!fs.existsSync(DATA_DIR)) {
@@ -24,6 +24,8 @@ export const PATHS = {
     changes: path.join(DATA_DIR, 'playerChanges.json'),   // 玩家变动记录
     subscriptions: path.join(DATA_DIR, 'groupSubscriptions.json'), // 群组推送订阅配置
     historical: path.join(DATA_DIR, 'historicalPlayers.json'),  // 历史玩家记录
+    auth_config: path.join(DATA_DIR, 'auth_config.json'),  // 验证配置
+    verified_users: path.join(DATA_DIR, 'verified_users.json')  // 已验证用户
 };
 
 // 默认配置
@@ -95,15 +97,21 @@ export function initDataFiles() {
 export const Data = {
     read(type) {
         try {
+            if (!PATHS[type]) {
+                throw new Error(`未知的数据类型: ${type}`);
+            }
             return JSON.parse(fs.readFileSync(PATHS[type], 'utf8'));
         } catch (error) {
-            console.error(`读取${type}据失败:`, error);
+            console.error(`读取${type}数据失败:`, error);
             return {};
         }
     },
 
     write(type, data) {
         try {
+            if (!PATHS[type]) {
+                throw new Error(`未知的数据类型: ${type}`);
+            }
             fs.writeFileSync(PATHS[type], JSON.stringify(data, null, 2));
             return true;
         } catch (error) {
