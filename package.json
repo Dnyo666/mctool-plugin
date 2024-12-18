@@ -1,0 +1,32 @@
+{
+  "name": "mctool-plugin",
+  "version": "1.0.0",
+  "description": "Minecraft服务器管理插件",
+  "main": "index.js",
+  "author": "浅巷墨黎",
+  "type": "module",
+  "scripts": {},
+  "dependencies": {
+    "art-template": "^4.13.2",
+    "lodash": "^4.17.21",
+    "node-fetch": "^3.3.2",
+    "node-schedule": "^2.1.1"
+  },
+  "imports": {
+    "#components": "./components/index.js",
+    "#models": "./models/index.js",
+    "#lib": "./lib/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dnyo666/MCServer-plugin"
+  },
+  "keywords": [
+    "minecraft",
+    "server",
+    "management",
+    "yunzai-bot",
+    "plugin"
+  ],
+  "license": "MIT"
+}

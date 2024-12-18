@@ -1,0 +1,17 @@
+# MC服务器管理插件配置文件
+
+# 服务器状态检查间隔（分钟）
+checkInterval: 1
+
+# 每个群可添加的最大服务器数量
+maxServers: 10
+
+# 玩家动态推送消息格式
+# 可用变量：
+# {player} - 玩家名
+# {action} - 动作（进入/离开）
+# {server} - 服务器名
+pushFormat: '【MC服务器推送】{player} 已{action} {server}'
+
+# API超时时间（秒）
+apiTimeout: 5 
