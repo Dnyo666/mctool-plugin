@@ -48,6 +48,9 @@ export class MCAuth extends plugin {
             ]
         });
 
+        // 先初始化数据目录和文件
+        initDataFiles();
+        // 再初始化验证相关的文件
         this.initFiles();
     }
 

@@ -8,13 +8,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 数据目录和文件路径
-const YUNZAI_DIR = path.join(__dirname, '..', '..', '..');  // Yunzai-Bot 根目录
 const PLUGIN_DIR = path.join(__dirname, '..');  // 插件根目录
-const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目录
+const PLUGIN_NAME = 'mctool-plugin';
+const DATA_DIR = path.join(PLUGIN_DIR, 'data');   // 数据存储目录
+const CONFIG_DIR = path.join(PLUGIN_DIR, 'config');  // 配置目录
 
 // 确保目录存在
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
 }
 
 // 数据文件路径
@@ -51,7 +55,7 @@ const DEFAULT_CONFIG = {
 // 获取配置
 export function getConfig(key) {
     try {
-        const configFile = path.join(process.cwd(), 'config', 'mctool.yaml');
+        const configFile = path.join(CONFIG_DIR, 'config.yaml');
         // 如果配置文件不存在，创建默认配置
         if (!fs.existsSync(configFile)) {
             fs.writeFileSync(configFile, YAML.stringify(DEFAULT_CONFIG), 'utf8');
@@ -69,7 +73,7 @@ export function getConfig(key) {
 // 保存配置
 export function saveConfig(config) {
     try {
-        const configFile = path.join(process.cwd(), 'config', 'mctool.yaml');
+        const configFile = path.join(CONFIG_DIR, 'config.yaml');
         const yaml = YAML.stringify(config);
         fs.writeFileSync(configFile, yaml, 'utf8');
         return true;
@@ -157,7 +161,7 @@ export const Data = {
 // 权限检查
 export async function checkGroupAdmin(e) {
     if (!e.isGroup) {
-        e.reply('该功能仅限群聊使用');
+        e.reply('该功能仅��群聊使用');
         return false;
     }
 
@@ -197,7 +201,7 @@ export async function queryServerStatus(address) {
             console.error(`查询服务器超时: ${address}`);
             return { online: false, players: null, timeout: true };
         }
-        console.error(`查询服务器状态失败: ${address}`, error);
+        console.error(`查询服务器��态失败: ${address}`, error);
         return { online: false, players: null };
     }
 }
