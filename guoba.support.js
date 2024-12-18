@@ -1,9 +1,12 @@
 import fs from 'fs'
 import lodash from 'lodash'
 import YAML from 'yaml'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 
-const Path = process.cwd()
-const Config_File = `${Path}/config/mctool.yaml`
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const Config_File = join(__dirname, 'config', 'mctool.yaml')
 
 // 读取配置文件
 function getConfig() {
