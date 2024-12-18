@@ -7,9 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 数据目录和文件路径
-const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'MCServer');
-const CONFIG_DIR = path.join(__dirname, '..', '..', 'config');
-const DEFAULT_CONFIG_DIR = path.join(__dirname, '..', '..', 'config', 'default_config');
+const YUNZAI_DIR = path.join(__dirname, '..', '..', '..');  // Yunzai-Bot 根目录
+const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目录
+const CONFIG_DIR = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin', 'config');  // 插件配置目录
+const DEFAULT_CONFIG_DIR = path.join(CONFIG_DIR, 'default_config');
 
 // 确保目录存在
 if (!fs.existsSync(DATA_DIR)) {
@@ -24,17 +25,22 @@ if (!fs.existsSync(DEFAULT_CONFIG_DIR)) {
 
 // 数据文件路径
 export const PATHS = {
-    servers: path.join(DATA_DIR, 'servers.json'),
-    players: path.join(DATA_DIR, 'players.json'),
-    subscriptions: path.join(DATA_DIR, 'subscriptions.json'),
-    historical: path.join(DATA_DIR, 'historical.json')
+    servers: path.join(DATA_DIR, 'servers.json'),         // 群组服务器列表
+    current: path.join(DATA_DIR, 'currentPlayers.json'),  // 当前在线玩家
+    changes: path.join(DATA_DIR, 'playerChanges.json'),   // 玩家变动记录
+    subscriptions: path.join(DATA_DIR, 'groupSubscriptions.json'), // 群组推送订阅配置
+    historical: path.join(DATA_DIR, 'historicalPlayers.json')  // 历史玩家记录
 };
 
 // 默认配置
 const DEFAULT_CONFIG = {
     checkInterval: 1,
     maxServers: 10,
-    pushFormat: '【MC服务器推送】{player} 已{action} {server}',
+    pushFormat: {
+        join: '【MC服务器推送】{player}已进入{server}',
+        leave: '【MC服务器推送】{player}已下线{server}',
+        newPlayer: '【MC服务器推送】发现新玩家{player}进入服务器{server}'
+    },
     apiTimeout: 5
 };
 
@@ -161,9 +167,11 @@ export async function queryServerStatus(address) {
 // 格式化推送消息
 export function formatPushMessage(player, action, server) {
     const format = getConfig('pushFormat');
-    return format
+    const template = action === 'join' ? format.join : 
+                    action === 'leave' ? format.leave : 
+                    format.newPlayer;
+    return template
         .replace('{player}', player)
-        .replace('{action}', action)
         .replace('{server}', server);
 }
 

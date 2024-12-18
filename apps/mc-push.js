@@ -5,30 +5,23 @@ import schedule from 'node-schedule';
 export class MCPush extends plugin {
     constructor() {
         super({
-            /** 功能名称 */
             name: 'MCTool-推送',
-            /** 功能描述 */
             dsc: 'Minecraft服务器推送服务',
-            /** 指令正则匹配 */
             event: 'message',
-            /** 优先级，数字越小等级越高 */
             priority: 5000,
             rule: [
                 {
-                    /** 命令正则匹配 */
                     reg: '^#mc(开启|关闭)推送$',
-                    /** 执行方法 */
                     fnc: 'togglePush',
-                    /** 权限 */
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc推送\\s+\\S+\\s+\\S+',
+                    reg: '^#mc推送玩家\\s+\\S+\\s+\\S+',
                     fnc: 'configurePlayerPush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc(开���|关闭)新人推送$',
+                    reg: '^#mc(开启|关闭)新人推送$',
                     fnc: 'toggleNewPlayerAlert',
                     permission: 'admin'
                 },
@@ -50,8 +43,7 @@ export class MCPush extends plugin {
     }
 
     startMonitoring() {
-        const interval = getConfig('checkInterval');
-        schedule.scheduleJob(`*/${interval} * * * *`, async () => {
+        schedule.scheduleJob('*/1 * * * *', async () => {
             await this.checkServerStatus();
         });
     }
@@ -59,39 +51,95 @@ export class MCPush extends plugin {
     async checkServerStatus() {
         try {
             const servers = Data.read('servers');
+            const currentData = Data.read('current');
+            const changesData = Data.read('changes');
+            const historicalData = Data.read('historical');
             const subscriptions = Data.read('subscriptions');
-            const players = Data.read('players');
 
-            for (const [groupId, groupServers] of Object.entries(servers)) {
-                if (!subscriptions[groupId]?.enabled) continue;
-
-                for (const server of groupServers) {
-                    const status = await queryServerStatus(server.address);
-                    if (!status.online) continue;
-
-                    const oldPlayers = players[server.id]?.list || [];
-                    const newPlayers = status.players.list;
-
-                    // 检测玩家变动
-                    const changes = this.detectPlayerChanges(oldPlayers, newPlayers);
-                    if (changes.join.length > 0 || changes.leave.length > 0) {
-                        await this.notifyChanges(groupId, server, changes, subscriptions[groupId]);
-                    }
-
-                    // 检测新家
-                    if (subscriptions[groupId].newPlayerAlert) {
-                        await this.checkNewPlayers(groupId, server, newPlayers);
-                    }
-
-                    // 更新玩家列表
-                    players[server.id] = {
-                        list: newPlayers,
-                        lastUpdate: Date.now()
-                    };
-                }
+            // 收集所有需要监控的服务器
+            const serversToMonitor = new Set();
+            for (const groupServers of Object.values(servers)) {
+                groupServers.forEach(server => serversToMonitor.add(server.address));
             }
 
-            Data.write('players', players);
+            // 检查每个服务器
+            for (const serverAddress of serversToMonitor) {
+                const status = await queryServerStatus(serverAddress);
+                if (!status.online) continue;
+
+                const newPlayerList = status.players.list;
+                const oldPlayerList = currentData[serverAddress]?.players || [];
+
+                // 检测玩家变动
+                const changes = this.detectPlayerChanges(oldPlayerList, newPlayerList);
+                
+                // 记录变动
+                if (changes.join.length > 0 || changes.leave.length > 0) {
+                    changesData[serverAddress] = changes;
+                    
+                    // 通知相关群组
+                    for (const [groupId, config] of Object.entries(subscriptions)) {
+                        if (!config.enabled) continue;
+                        const serverConfig = config.servers[serverAddress];
+                        if (!serverConfig) continue;
+
+                        const messages = [];
+
+                        // 处理新玩家
+                        if (config.newPlayerAlert) {
+                            const newPlayers = changes.join.filter(player => 
+                                !historicalData[serverAddress]?.includes(player)
+                            );
+                            if (newPlayers.length > 0) {
+                                historicalData[serverAddress] = [
+                                    ...(historicalData[serverAddress] || []),
+                                    ...newPlayers
+                                ];
+                                newPlayers.forEach(player => {
+                                    messages.push(formatPushMessage(player, 'new', serverConfig.serverName));
+                                });
+                            }
+                        }
+
+                        // 处理常规玩家变动
+                        if (serverConfig.players.includes('all')) {
+                            changes.join.forEach(player => {
+                                messages.push(formatPushMessage(player, 'join', serverConfig.serverName));
+                            });
+                            changes.leave.forEach(player => {
+                                messages.push(formatPushMessage(player, 'leave', serverConfig.serverName));
+                            });
+                        } else {
+                            const monitoredPlayers = new Set(serverConfig.players);
+                            changes.join
+                                .filter(player => monitoredPlayers.has(player))
+                                .forEach(player => {
+                                    messages.push(formatPushMessage(player, 'join', serverConfig.serverName));
+                                });
+                            changes.leave
+                                .filter(player => monitoredPlayers.has(player))
+                                .forEach(player => {
+                                    messages.push(formatPushMessage(player, 'leave', serverConfig.serverName));
+                                });
+                        }
+
+                        if (messages.length > 0) {
+                            Bot.pickGroup(groupId).sendMsg(messages.join('\n'));
+                        }
+                    }
+                }
+
+                // 更新当前玩家列表
+                currentData[serverAddress] = {
+                    players: newPlayerList,
+                    lastUpdate: Date.now()
+                };
+            }
+
+            // 保存数据
+            Data.write('current', currentData);
+            Data.write('changes', changesData);
+            Data.write('historical', historicalData);
         } catch (error) {
             console.error('检查服务器状态失败:', error);
         }
@@ -101,45 +149,6 @@ export class MCPush extends plugin {
         const join = newPlayers.filter(p => !oldPlayers.includes(p));
         const leave = oldPlayers.filter(p => !newPlayers.includes(p));
         return { join, leave };
-    }
-
-    async notifyChanges(groupId, server, changes, subscription) {
-        const serverConfig = subscription.servers[server.id];
-        if (!serverConfig) return;
-
-        const messages = [];
-        
-        for (const player of changes.join) {
-            if (serverConfig.players.includes('all') || serverConfig.players.includes(player)) {
-                messages.push(formatPushMessage(player, '进入', server.name));
-            }
-        }
-
-        for (const player of changes.leave) {
-            if (serverConfig.players.includes('all') || serverConfig.players.includes(player)) {
-                messages.push(formatPushMessage(player, '离开', server.name));
-            }
-        }
-
-        if (messages.length > 0) {
-            Bot.pickGroup(groupId).sendMsg(messages.join('\n'));
-        }
-    }
-
-    async checkNewPlayers(groupId, server, currentPlayers) {
-        const historical = Data.read('historical');
-        if (!historical[server.id]) {
-            historical[server.id] = [];
-        }
-
-        const newPlayers = currentPlayers.filter(p => !historical[server.id].includes(p));
-        if (newPlayers.length > 0) {
-            historical[server.id].push(...newPlayers);
-            Data.write('historical', historical);
-
-            const message = `【新玩家提醒】\n服务器: ${server.name}\n新玩家: ${newPlayers.join(', ')}`;
-            Bot.pickGroup(groupId).sendMsg(message);
-        }
     }
 
     async togglePush(e) {
@@ -171,22 +180,36 @@ export class MCPush extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#mc推送\s+(\S+)\s+(\S+)$/);
+            const match = e.msg.match(/^#mc推送玩家\s+(\S+)\s+(\S+)$/);
             if (!match) {
-                e.reply('格式错误\n用法: #mc推送 <服务器ID> <玩家名/all>');
+                e.reply('格式错误\n用法: #mc推送玩家 <服务器ID/IP> <玩家名/all>');
                 return;
             }
 
-            const [, serverId, playerName] = match;
+            const [, serverIdentifier, playerName] = match;
             const servers = Data.read('servers');
             const subscriptions = Data.read('subscriptions');
 
-            const server = servers[e.group_id]?.find(s => s.id === parseInt(serverId));
-            if (!server) {
-                e.reply('未找到指定的服务器');
-                return;
+            // 查找服务器信息
+            let serverAddress;
+            let serverName;
+            if (/^\d+$/.test(serverIdentifier)) {
+                // 通过ID查找
+                const serverId = parseInt(serverIdentifier);
+                const server = servers[e.group_id]?.find(s => s.id === serverId);
+                if (!server) {
+                    e.reply(`未找到ID为 ${serverId} 的服务器`);
+                    return;
+                }
+                serverAddress = server.address;
+                serverName = server.name;
+            } else {
+                // 直接使用IP地址
+                serverAddress = serverIdentifier;
+                serverName = serverIdentifier;
             }
 
+            // 初始化群组配置
             if (!subscriptions[e.group_id]) {
                 subscriptions[e.group_id] = {
                     enabled: true,
@@ -195,18 +218,20 @@ export class MCPush extends plugin {
                 };
             }
 
-            if (!subscriptions[e.group_id].servers[server.id]) {
-                subscriptions[e.group_id].servers[server.id] = {
+            // 初始化服务器配置
+            if (!subscriptions[e.group_id].servers[serverAddress]) {
+                subscriptions[e.group_id].servers[serverAddress] = {
+                    serverName: serverName,
                     players: []
                 };
             }
 
-            const serverConfig = subscriptions[e.group_id].servers[server.id];
+            const serverConfig = subscriptions[e.group_id].servers[serverAddress];
 
             if (playerName.toLowerCase() === 'all') {
                 serverConfig.players = ['all'];
                 Data.write('subscriptions', subscriptions);
-                e.reply(`已设置推送 ${server.name} 的所有玩家动态`);
+                e.reply(`已设置推送 ${serverName} 的所有玩家动态`);
                 return;
             }
 
@@ -254,30 +279,48 @@ export class MCPush extends plugin {
         try {
             const match = e.msg.match(/^#mc取消推送\s+(\S+)\s+(\S+)$/);
             if (!match) {
-                e.reply('格式错误\n用法: #mc取消推送 <服务器ID> <玩家名>');
+                e.reply('格式错误\n用法: #mc取消推送 <服务器ID/IP> <玩家名/all>');
                 return;
             }
 
-            const [, serverId, playerName] = match;
+            const [, serverIdentifier, playerName] = match;
+            const servers = Data.read('servers');
             const subscriptions = Data.read('subscriptions');
 
-            if (!subscriptions[e.group_id]?.servers[serverId]) {
+            // 查找服务器信息
+            let serverAddress;
+            if (/^\d+$/.test(serverIdentifier)) {
+                const serverId = parseInt(serverIdentifier);
+                const server = servers[e.group_id]?.find(s => s.id === serverId);
+                if (!server) {
+                    e.reply(`未找到ID为 ${serverId} 的服务器`);
+                    return;
+                }
+                serverAddress = server.address;
+            } else {
+                serverAddress = serverIdentifier;
+            }
+
+            if (!subscriptions[e.group_id]?.servers[serverAddress]) {
                 e.reply('未找到该服务器的推送配置');
                 return;
             }
 
-            const serverConfig = subscriptions[e.group_id].servers[serverId];
-            const playerIndex = serverConfig.players.indexOf(playerName);
+            const serverConfig = subscriptions[e.group_id].servers[serverAddress];
 
-            if (playerIndex === -1) {
-                e.reply('该玩家不在推送列表中');
-                return;
+            if (playerName.toLowerCase() === 'all') {
+                serverConfig.players = [];
+            } else {
+                const playerIndex = serverConfig.players.indexOf(playerName);
+                if (playerIndex === -1) {
+                    e.reply('该玩家不在推送列表中');
+                    return;
+                }
+                serverConfig.players.splice(playerIndex, 1);
             }
 
-            serverConfig.players.splice(playerIndex, 1);
             Data.write('subscriptions', subscriptions);
-            
-            e.reply(`已取消对玩家 ${playerName} 的动态推送`);
+            e.reply(`已取消${playerName.toLowerCase() === 'all' ? '所有' : `玩家 ${playerName} 的`}推送`);
         } catch (error) {
             console.error('取消推送失败:', error);
             e.reply('取消推送失败，请稍后重试');
@@ -289,7 +332,6 @@ export class MCPush extends plugin {
             const subscriptions = Data.read('subscriptions');
             const servers = Data.read('servers');
 
-            // 获取当前群组的配置
             const groupConfig = subscriptions[e.group_id];
             if (!groupConfig || Object.keys(groupConfig.servers).length === 0) {
                 e.reply('当前群聊未配置任何推送');
@@ -298,13 +340,12 @@ export class MCPush extends plugin {
 
             const configList = [];
             configList.push(`推送状态: ${groupConfig.enabled ? '已开启' : '已关闭'}`);
-            configList.push(`新玩家提醒: ${groupConfig.newPlayerAlert ? '已开启' : '关闭'}`);
+            configList.push(`新玩家提醒: ${groupConfig.newPlayerAlert ? '已开启' : '已关闭'}`);
             configList.push('\n已配置的服务器:');
 
-            // 遍历所有配置的服务器
-            for (const [serverId, serverConfig] of Object.entries(groupConfig.servers)) {
-                const server = servers[e.group_id]?.find(s => s.id === parseInt(serverId));
-                if (!server) continue;
+            for (const [serverAddress, serverConfig] of Object.entries(groupConfig.servers)) {
+                const server = servers[e.group_id]?.find(s => s.address === serverAddress);
+                const serverName = server?.name || serverAddress;
 
                 const playerConfig = serverConfig.players.includes('all') 
                     ? '所有玩家' 
@@ -312,17 +353,12 @@ export class MCPush extends plugin {
                         ? `指定玩家: ${serverConfig.players.join(', ')}` 
                         : '无玩家配置';
 
-                configList.push(`\n服务器: ${server.name}`);
-                configList.push(`地址: ${server.address}`);
+                configList.push(`\n服务器: ${serverName}`);
+                configList.push(`地址: ${serverAddress}`);
                 configList.push(`推送配置: ${playerConfig}`);
             }
 
-            // 如果配置信息较多，使用转发消息
-            if (configList.length > 15) {
-                await this.sendForwardMsg(e, configList);
-            } else {
-                e.reply(configList.join('\n'));
-            }
+            e.reply(configList.join('\n'));
         } catch (error) {
             console.error('获取推送配置时发生错误:', error);
             e.reply('获取推送配置失败，请稍后重试');
