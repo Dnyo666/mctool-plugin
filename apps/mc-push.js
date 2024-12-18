@@ -1,5 +1,5 @@
 import plugin from '../../../lib/plugins/plugin.js';
-import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles } from './mc-utils.js';
+import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles, getConfig, formatPushMessage } from './mc-utils.js';
 import schedule from 'node-schedule';
 
 export class MCPush extends plugin {
@@ -73,7 +73,7 @@ export class MCPush extends plugin {
                         await this.notifyChanges(groupId, server, changes, subscriptions[groupId]);
                     }
 
-                    // 检测新玩家
+                    // 检测新���家
                     if (subscriptions[groupId].newPlayerAlert) {
                         await this.checkNewPlayers(groupId, server, newPlayers);
                     }
