@@ -1,11 +1,10 @@
 import fs from 'fs'
 import lodash from 'lodash'
 import YAML from 'yaml'
-import { Config } from '../../../lib/config/config.js'
+import { Config } from '../../lib/config/config.js'
 
 const Path = process.cwd()
 const Config_File = `${Path}/config/mctool.yaml`
-
 
 // 读取配置文件
 function getConfig() {
@@ -44,7 +43,7 @@ export function supportGuoba() {
             description: 'Minecraft服务器管理插件，提供服务器状态监控、玩家动态推送等功能',
             // 显示图标，此为个性化配置
             icon: 'mdi:minecraft',
-            // 图标颜色，例：#FF0000 或 rgb(255, 0, 0)
+            // 图标颜��，例：#FF0000 或 rgb(255, 0, 0)
             iconColor: '#7CBA3B',
             // 如果想要显示成图片，也可以填写图片链接
             iconPath: ''
@@ -110,7 +109,7 @@ export function supportGuoba() {
                                     },
                                     {
                                         field: 'leave',
-                                        label: '玩家��线',
+                                        label: '玩家下线',
                                         bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
                                         component: 'Input',
                                         required: true,
