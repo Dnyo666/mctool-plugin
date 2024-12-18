@@ -1,9 +1,11 @@
 import fs from 'fs'
 import lodash from 'lodash'
 import YAML from 'yaml'
+import { Config } from '../../../lib/config/config.js'
 
 const Path = process.cwd()
 const Config_File = `${Path}/config/mctool.yaml`
+
 
 // 读取配置文件
 function getConfig() {
@@ -44,12 +46,11 @@ export function supportGuoba() {
             icon: 'mdi:minecraft',
             // 图标颜色，例：#FF0000 或 rgb(255, 0, 0)
             iconColor: '#7CBA3B',
-            // 如想要显示成图片，也可以填写图片链接
+            // 如果想要显示成图片，也可以填写图片链接
             iconPath: ''
         },
         // 配置项信息
         configInfo: {
-            // 配置项 schemas
             schemas: [
                 {
                     field: 'checkInterval',
@@ -109,7 +110,7 @@ export function supportGuoba() {
                                     },
                                     {
                                         field: 'leave',
-                                        label: '玩家下线',
+                                        label: '玩家��线',
                                         bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
                                         component: 'Input',
                                         required: true,
@@ -213,17 +214,24 @@ export function supportGuoba() {
                     }
                 }
             ],
-            // 获取配置数据方法（用于前端填充显示数据）
             getConfigData() {
                 return getConfig()
             },
-            // 设置配置的方法（前端点确定后调用的方法）
             setConfigData(data, { Result }) {
                 if (saveConfig(data)) {
                     return Result.ok({}, '保存成功~')
                 } else {
                     return Result.error('保存失败！')
                 }
+            }
+        },
+        // 定时任务配置
+        cronConfig: {
+            // 检查服务器状态的定时任务
+            checkServer: {
+                name: '检查服务器状态',
+                cron: '*/5 * * * *',  // 每5分钟执行一次
+                isEnable: true
             }
         }
     }
