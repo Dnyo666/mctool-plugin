@@ -1,4 +1,4 @@
-import plugin from '../lib/plugins/plugin.js';
+import plugin from '../../lib/plugins/plugin.js';
 import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles } from './mc-utils.js';
 import common from '../lib/common/common.js';
 
@@ -116,7 +116,7 @@ export class MCServer extends plugin {
         try {
             const servers = Data.read('servers');
             if (!servers[e.group_id] || !servers[e.group_id].length) {
-                e.reply('该群未添加任何服务器\n请管理员使用 #mc添加 添加服务器');
+                e.reply('该群未添加任何服���器\n请管理员使用 #mc添加 添加服务器');
                 return;
             }
 
@@ -148,7 +148,7 @@ export class MCServer extends plugin {
         try {
             const servers = Data.read('servers');
             if (!servers[e.group_id] || !servers[e.group_id].length) {
-                e.reply('该群未添加任何服务器\n请管理员使用 #mc添加 加服务器');
+                e.reply('该群未添加任何服务器\n请���理员使用 #mc添加 加服务器');
                 return;
             }
 

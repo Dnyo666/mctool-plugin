@@ -1,4 +1,4 @@
-import plugin from '../lib/plugins/plugin.js';
+import plugin from '../../lib/plugins/plugin.js';
 import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles } from './mc-utils.js';
 import schedule from 'node-schedule';
 

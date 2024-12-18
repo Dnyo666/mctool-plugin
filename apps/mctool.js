@@ -261,7 +261,7 @@ export class MCServer extends plugin {
             e.reply(`已删除ID为 ${serverId} 的服务器`);
         } catch (error) {
             console.error('删除服务器失败:', error);
-            e.reply('删除服务��失败，请稍后重试');
+            e.reply('删除服务器失败，请稍后重试');
         }
     }
 
@@ -402,7 +402,7 @@ export class MCServer extends plugin {
         }
 
         try {
-            const isEnable = e.msg.includes('开启');
+            const isEnable = e.msg.includes('开��');
             const subscriptions = JSON.parse(fs.readFileSync(PATHS.subscriptions, 'utf8'));
             
             if (!subscriptions[e.group_id]) {
@@ -439,7 +439,7 @@ export class MCServer extends plugin {
         try {
             const match = e.msg.match(/^#mc推送\s+(\S+)\s+(\S+)$/);
             if (!match) {
-                e.reply('格式错误\n用法: #mc推送 <服务器ID> <玩家名/all>');
+                e.reply('格式错误\n用法: #mc推送 <服务器ID> <���家名/all>');
                 return;
             }
 
