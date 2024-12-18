@@ -153,29 +153,36 @@ export class MCServer extends plugin {
             }
 
             let totalPlayers = 0;
-            const playersList = await Promise.all(servers[e.group_id].map(async server => {
+            const onlineServers = [];
+            
+            // 查询所有服务器状态
+            await Promise.all(servers[e.group_id].map(async server => {
                 const status = await queryServerStatus(server.address);
-                
-                if (!status.online) {
-                    return {
-                        message: `服务器: ${server.name}\n状态: 离线🔴`,
-                        playerCount: 0
-                    };
+                if (status.online) {
+                    totalPlayers += status.players.list.length;
+                    onlineServers.push({
+                        name: server.name,
+                        players: status.players.list,
+                        maxPlayers: status.players.max
+                    });
                 }
-
-                const playerNames = status.players.list.join('\n');
-                totalPlayers += status.players.list.length;
-
-                return {
-                    message: `服务器: ${server.name}\n状态: 在线🟢\n在线人数: ${status.players.online}/${status.players.max}\n在线玩家:\n${playerNames || '暂无玩家在线'}`,
-                    playerCount: status.players.list.length
-                };
             }));
 
-            const needForward = playersList.some(s => s.playerCount > 10) || totalPlayers > 15;
-            const messages = playersList.map(s => s.message);
+            if (onlineServers.length === 0) {
+                e.reply('当前没有在线的服务器');
+                return;
+            }
 
-            if (needForward) {
+            // 格式化服务器信息
+            const messages = onlineServers.map(server => {
+                const playerList = server.players.length > 0 ? 
+                    server.players.join('\n') : 
+                    '暂无玩家在线';
+                return `${server.name} (${server.players.length}/${server.maxPlayers})\n${playerList}`;
+            });
+
+            // 根据玩家数量决定是否使用转发消息
+            if (totalPlayers > 15 || onlineServers.some(s => s.players.length > 10)) {
                 await this.sendForwardMsg(e, messages);
             } else {
                 e.reply(messages.join('\n\n'));

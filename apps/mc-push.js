@@ -26,6 +26,11 @@ export class MCPush extends plugin {
                     permission: 'admin'
                 },
                 {
+                    reg: '^#mc(开启|关闭)状态推送$',
+                    fnc: 'toggleServerStatusPush',
+                    permission: 'admin'
+                },
+                {
                     reg: '^#mc取消推送\\s+\\S+\\s+\\S+',
                     fnc: 'cancelPush',
                     permission: 'admin'
@@ -65,7 +70,29 @@ export class MCPush extends plugin {
             // 检查每个服务器
             for (const serverAddress of serversToMonitor) {
                 const status = await queryServerStatus(serverAddress);
-                if (!status.online) continue;
+                const wasOnline = currentData[serverAddress]?.online ?? true; // 默认为在线，避免首次检查就推送离线消息
+
+                // 处理服务器状态变化推送
+                if (status.online !== wasOnline) {
+                    // 通知相关群组
+                    for (const [groupId, config] of Object.entries(subscriptions)) {
+                        if (!config.enabled || !config.serverStatusPush) continue;
+                        const serverConfig = config.servers[serverAddress];
+                        if (!serverConfig?.enabled) continue;
+
+                        const serverName = serverConfig.serverName || serverAddress;
+                        const message = formatPushMessage(null, status.online ? 'serverOnline' : 'serverOffline', serverName);
+                        Bot.pickGroup(groupId).sendMsg(message);
+                    }
+                }
+
+                if (!status.online) {
+                    currentData[serverAddress] = {
+                        online: false,
+                        lastUpdate: Date.now()
+                    };
+                    continue;
+                }
 
                 const newPlayerList = status.players.list;
                 const oldPlayerList = currentData[serverAddress]?.players || [];
@@ -81,7 +108,7 @@ export class MCPush extends plugin {
                     for (const [groupId, config] of Object.entries(subscriptions)) {
                         if (!config.enabled) continue;
                         const serverConfig = config.servers[serverAddress];
-                        if (!serverConfig) continue;
+                        if (!serverConfig?.enabled) continue;
 
                         const messages = [];
 
@@ -131,6 +158,7 @@ export class MCPush extends plugin {
 
                 // 更新当前玩家列表
                 currentData[serverAddress] = {
+                    online: true,
                     players: newPlayerList,
                     lastUpdate: Date.now()
                 };
@@ -169,7 +197,7 @@ export class MCPush extends plugin {
             subscriptions[e.group_id].enabled = isEnable;
             Data.write('subscriptions', subscriptions);
             
-            e.reply(`已${isEnable ? '开启' : '关闭'}推送功能`);
+            e.reply(`已${isEnable ? '开启' : '关闭'}推送��能`);
         } catch (error) {
             console.error('操作推送功能失败:', error);
             e.reply('操作失败，请稍后重试');
@@ -240,7 +268,7 @@ export class MCPush extends plugin {
                 Data.write('subscriptions', subscriptions);
                 e.reply(`已添加对玩家 ${playerName} 的动态推送`);
             } else {
-                e.reply('该玩家已在推送列表中');
+                e.reply('��玩家已在推送列表中');
             }
         } catch (error) {
             console.error('配置推送失败:', error);
@@ -377,6 +405,32 @@ export class MCPush extends plugin {
         } catch (error) {
             console.error('获取推送配置时发生错误:', error);
             e.reply('获取推送配置失败，请稍后重试');
+        }
+    }
+
+    async toggleServerStatusPush(e) {
+        if (!await checkGroupAdmin(e)) return;
+
+        try {
+            const isEnable = e.msg.includes('开启');
+            const subscriptions = Data.read('subscriptions');
+            
+            if (!subscriptions[e.group_id]) {
+                subscriptions[e.group_id] = {
+                    enabled: false,
+                    servers: {},
+                    newPlayerAlert: false,
+                    serverStatusPush: false
+                };
+            }
+
+            subscriptions[e.group_id].serverStatusPush = isEnable;
+            Data.write('subscriptions', subscriptions);
+            
+            e.reply(`已${isEnable ? '开启' : '关闭'}服务器状态推送功能`);
+        } catch (error) {
+            console.error('操作服务器状态推送功能失败:', error);
+            e.reply('操作失败，请稍后重试');
         }
     }
 } 

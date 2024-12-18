@@ -25,7 +25,7 @@ export class helpApp extends plugin {
 基础指令：
 #mc帮助 - 显示本帮助
 #mc列表 - 查看服务器列表
-#mc在线 - 查看在线玩家
+#mc在线 - 查看在线服务器及玩家列表
 
 管理指令：
 #mc添加 <名称> <IP:端口> [描述] - 添加服务器
@@ -38,6 +38,8 @@ export class helpApp extends plugin {
 #mc取消推送 <服务器ID> <玩家名> - 取消推送
 #mc开启新人推送 - 开启新玩家提醒
 #mc关闭新人推送 - 关闭新玩家提醒
+#mc开启状态推送 - 开启服务器状态推送
+#mc关闭状态推送 - 关闭服务器状态推送
 #mcpushlist - 查看当前推送配置
 
 示例：

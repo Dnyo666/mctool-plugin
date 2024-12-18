@@ -27,7 +27,7 @@ if (!fs.existsSync(DEFAULT_CONFIG_DIR)) {
 export const PATHS = {
     servers: path.join(DATA_DIR, 'servers.json'),         // 群组服务器列表
     current: path.join(DATA_DIR, 'currentPlayers.json'),  // 当前在线玩家
-    changes: path.join(DATA_DIR, 'playerChanges.json'),   // ���家变动记录
+    changes: path.join(DATA_DIR, 'playerChanges.json'),   // 家变动记录
     subscriptions: path.join(DATA_DIR, 'groupSubscriptions.json'), // 群组推送订阅配置
     historical: path.join(DATA_DIR, 'historicalPlayers.json')  // 历史玩家记录
 };
@@ -39,7 +39,9 @@ const DEFAULT_CONFIG = {
     pushFormat: {
         join: '【MC服务器推送】{player}已进入{server}',
         leave: '【MC服务器推送】{player}已下线{server}',
-        newPlayer: '【MC服务器推送】发现新玩家{player}进入服务器{server}'
+        newPlayer: '【MC服务器推送】发现新玩家{player}进入服务器{server}',
+        serverOnline: '【MC服务器推送】{server}已上线',
+        serverOffline: '【MC服务器推送】{server}已离线'
     },
     apiTimeout: 5
 };

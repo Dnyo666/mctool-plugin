@@ -1,118 +1,114 @@
-# MCTool Plugin
+![MCTool-Plugin](https://socialify.git.ci/Dnyo666/MCTool-Plugin/image?description=1&font=Raleway&forks=1&issues=1&language=1&name=1&owner=1&pattern=Circuit%20Board&pulls=1&stargazers=1&theme=Auto)
 
-MCTool 是一个基于 Yunzai-Bot 的 Minecraft 服务器管理插件，提供服务器状态查询、玩家动态推送等功能。
+<img decoding="async" align=right src="resources/readme/background.png" width="35%">
 
-## 功能特点
+# MCTool-Plugin 🎮
 
-- 🖥️ **服务器管理**
+- 一个适用于 [Yunzai-Bot](https://github.com/Le-niao/Yunzai-Bot) 的 Minecraft 服务器管理插件
+- 提供服务器状态监控、玩家动态推送、新玩家提醒等功能
+- 支持多服务器管理、自定义推送设置等个性化配置
+
+## 安装教程
+
+1. 克隆项目
+```bash
+git clone https://github.com/Dnyo666/mctool-plugin.git ./plugins/mctool-plugin/
+```
+
+2. 进入插件目录
+```bash
+cd ./plugins/mctool-plugin/
+```
+
+3. 安装依赖
+```bash
+pnpm install
+```
+
+4. 重启云崽
+
+## 功能介绍
+
+<details><summary>基础功能</summary>
+
+- [x] 服务器管理
   - 添加/删除服务器
-  - 查看服务器状态
-  - 查看在线玩家
+  - 支持多服务器配置
+  - 数据本地持久化存储
+- [x] 状态监控
+  - 实时服务器状态
+  - 在线玩家统计
+  - 服务器状态推送
+- [x] 玩家动态
+  - 玩家上下线推送
+  - 新玩家提醒
+  - 自定义推送配置
+- [x] 推送服务
+  - 群组独立配置
+  - 自定义推送内容
+  - 智能消息转发
 
-- 📢 **动态推送**
-  - 玩家上下线提醒
-  - 新玩家加入提醒
-  - 自定义推送格式
+</details>
 
-- ⚙️ **可视化配置**
-  - 支持 Guoba 插件管理器
-  - 灵活的配置选项
-  - 友好的配置界面
+## 使用指南
 
-## 安装方法
+<details><summary>常用命令</summary>
 
-1. 在 Yunzai-Bot 根目录下执行：
-```bash
-git clone https://github.com/Dnyo666/mctool-plugin ./plugins/mctool-plugin/
-```
-
-2. 安装依赖：
-```bash
-pnpm install -P
-```
-
-3. 重启 Yunzai-Bot
-
-## 使用方法
-
-### 基础指令
-
-| 指令 | 说明 | 权限 |
+| 命令 | 说明 | 示例 |
 |------|------|------|
-| #mc帮助 | 显示帮助信息 | 所有人 |
-| #mc列表 | 查看服务器状态 | 所有人 |
-| #mc在线 | 查看在线玩家 | 所有人 |
+| #mc帮助 | 查看帮助 | #mc帮助 |
+| #mc列表 | 查看服务器列表 | #mc列表 |
+| #mc在线 | 查看在线玩家 | #mc在线 |
+| #mc添加 | 添加服务器 | #mc添加 生存服 play.abc.com:25565 这是一个生存服 |
+| #mc删除 | 删除服务器 | #mc删除 1 |
+| #mc开启推送 | 开启推送 | #mc开启推送 |
+| #mc推送玩家 | 设置玩家推送 | #mc推送玩家 1 Steve |
+| #mc开启状态推送 | 开启服务器状态推送 | #mc开启状态推送 |
 
-### 管理指令
-
-| 指令 | 说明 | 权限 |
-|------|------|------|
-| #mc添加 <名称> <IP:端口> [描述] | 添加服务器 | 群管理 |
-| #mc删除 <ID> | 删除服务器 | 群管理 |
-
-### 推送指令
-
-| 指令 | 说明 | 权限 |
-|------|------|------|
-| #mc开启推送 | 开启玩家推送 | 群管理 |
-| #mc关闭推送 | 关闭玩家推送 | 群管理 |
-| #mc推送 <服务器ID> <玩家名/all> | 设置推送目标 | 群管理 |
-| #mc取消推送 <服务器ID> <玩家名> | 取消玩家推送 | 群管理 |
-| #mc开启新人推送 | 开启新玩家提醒 | 群管理 |
-| #mc关闭新人推送 | 关闭新玩家提醒 | 群管理 |
+</details>
 
 ## 配置说明
 
-插件配置文件位于 `config/config/mctool.yaml`：
+<details><summary>配置项说明</summary>
 
-```yaml
-# 服务器状态检查间隔（分钟）
-checkInterval: 1
+主要配置项:
+- 检查间隔: 服务器状态检查间隔
+- 最大服务器数: 单群组最大服务器数量
+- 推送格式: 自定义推送消息格式
+- API超时: API请求超时时间设置
 
-# 每个群可添加的最大服务器数量
-maxServers: 10
+配置文件位置: `plugins/mctool-plugin/config/mctool.yaml`
 
-# 玩家动态推送消息格式
-pushFormat: '【MC服务器推送】{player} 已{action} {server}'
+</details>
 
-# API超时时间（秒）
-apiTimeout: 5
-```
+## 效果展示
 
-## 常见问题
+<details><summary>功能截图</summary>
 
-**Q: 为什么无法添加服务器？**
-A: 请确保：
-1. 您是群管理员或群主
-2. 服务器地址格式正确（IP:端口）
-3. 未超过最大服务器数量限制
+| 功能 | 效果图 |
+|------|--------|
+| 服务器列表 | ![服务器列表](resources/readme/servers.png) |
+| 在线玩家 | ![在线玩家](resources/readme/players.png) |
+| 推送效果 | ![推送效果](resources/readme/push.png) |
 
-**Q: 为什么推送消息没有收到？**
-A: 请检查：
-1. 是否已开启推送功能
-2. 是否已正确配置推送目标
-3. 服务器是否在线
+</details>
 
-## 更新日志
+## 联系方式
 
-### v1.0.0
-- 初始版本发布
-- 基础服务器管理功能
-- 玩家动态推送功能
-- Guoba 配置支持
+- QQ群: [303104111](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=gdLRKPbtdd23Tw9M0HthGaU-PRXFToFY&authKey=ULxjgIsrwBQt74OIgbozC8aztsuHYPNvQcpERBqGf9TvUwdO2myrJxhSZTx2kwdh&noverify=0&group_code=303104111)
 
-## 致谢
+## 贡献者
 
-- [Yunzai-Bot](https://github.com/Le-niao/Yunzai-Bot)
-- [Guoba-Plugin](https://github.com/guoba-yunzai/guoba-plugin)
-- [mcstatus.io](https://mcstatus.io/)
+> 🌟 感谢所有为 **MCTool-Plugin** 做出贡献的人！
 
-## 交流反馈
+<a href="https://github.com/Dnyo666/MCTool-Plugin/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Dnyo666%2FMCTool-Plugin" />
+</a>
 
-- 交流群：303104111
-- 项目地址：[GitHub](https://github.com/Dnyo666/mctool-plugin)
-- 作者：浅巷墨黎
+## 其他
+
+如果觉得此插件对你有帮助的话,可以点一个 star,你的支持就是我们不断更新的动力~
 
 ## 许可证
 
-MIT License
+项目采用 [MIT](./LICENSE) 许可证
