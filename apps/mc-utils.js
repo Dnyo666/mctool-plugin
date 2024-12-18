@@ -11,13 +11,24 @@ const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'MCServer');
 const CONFIG_DIR = path.join(__dirname, '..', '..', 'config');
 const DEFAULT_CONFIG_DIR = path.join(__dirname, '..', '..', 'config', 'default_config');
 
-// 确保配置目录存在
+// 确保目录存在
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
 }
 if (!fs.existsSync(DEFAULT_CONFIG_DIR)) {
     fs.mkdirSync(DEFAULT_CONFIG_DIR, { recursive: true });
 }
+
+// 数据文件路径
+export const PATHS = {
+    servers: path.join(DATA_DIR, 'servers.json'),
+    players: path.join(DATA_DIR, 'players.json'),
+    subscriptions: path.join(DATA_DIR, 'subscriptions.json'),
+    historical: path.join(DATA_DIR, 'historical.json')
+};
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -69,6 +80,7 @@ export function initDataFiles() {
         fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
+    // 初始化所有数据文件
     for (const filePath of Object.values(PATHS)) {
         if (!fs.existsSync(filePath)) {
             fs.writeFileSync(filePath, '{}', 'utf8');
