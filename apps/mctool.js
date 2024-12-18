@@ -1,9 +1,9 @@
-import plugin from '../../lib/plugins/plugin.js';
+import plugin from '../../../lib/plugins/plugin.js';
 import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import common from '../../lib/common/common.js';
+import common from '../../../lib/common/common.js';
 import schedule from 'node-schedule';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -373,7 +373,7 @@ export class MCServer extends plugin {
 #mc删除 <ID> - 删除指定服务器
 
 推送设置：
-#mc开启推送 - 开启玩家推送
+#mc开启推��� - 开启玩家推送
 #mc关闭推送 - 关闭玩家推送
 #mc推送 <服务器ID> <玩家名/all> - 设置推送
 #mc取消推送 <服务器ID> <玩家名> - 取消推送
@@ -402,7 +402,7 @@ export class MCServer extends plugin {
         }
 
         try {
-            const isEnable = e.msg.includes('开��');
+            const isEnable = e.msg.includes('开启');
             const subscriptions = JSON.parse(fs.readFileSync(PATHS.subscriptions, 'utf8'));
             
             if (!subscriptions[e.group_id]) {
@@ -439,7 +439,7 @@ export class MCServer extends plugin {
         try {
             const match = e.msg.match(/^#mc推送\s+(\S+)\s+(\S+)$/);
             if (!match) {
-                e.reply('格式错误\n用法: #mc推送 <服务器ID> <���家名/all>');
+                e.reply('格式错误\n用法: #mc推送 <服务器ID> <玩家名/all>');
                 return;
             }
 
