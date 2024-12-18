@@ -11,32 +11,32 @@ export class MCPush extends plugin {
             priority: 5000,
             rule: [
                 {
-                    reg: '^#mc(开启|关闭)推送$',
+                    reg: '^#[Mm][Cc](开启|关闭)推送$',
                     fnc: 'togglePush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc推送玩家\\s+\\S+\\s+\\S+',
+                    reg: '^#[Mm][Cc]推送玩家\\s+\\S+\\s+\\S+',
                     fnc: 'configurePlayerPush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc(开启|关闭)新人推送$',
+                    reg: '^#[Mm][Cc](开启|关闭)新人推送\\s+\\S+',
                     fnc: 'toggleNewPlayerAlert',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc(开启|关闭)状态推送$',
+                    reg: '^#[Mm][Cc](开启|关闭)状态推送$',
                     fnc: 'toggleServerStatusPush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc取消推送\\s+\\S+\\s+\\S+',
+                    reg: '^#[Mm][Cc]取消推送\\s+\\S+\\s+\\S+',
                     fnc: 'cancelPush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mcpushlist$',
+                    reg: '^#[Mm][Cc]pushlist$',
                     fnc: 'getPushConfig',
                     permission: 'all'
                 }
@@ -197,7 +197,7 @@ export class MCPush extends plugin {
             subscriptions[e.group_id].enabled = isEnable;
             Data.write('subscriptions', subscriptions);
             
-            e.reply(`已${isEnable ? '开启' : '关闭'}推送��能`);
+            e.reply(`已${isEnable ? '开启' : '关闭'}推送功能`);
         } catch (error) {
             console.error('操作推送功能失败:', error);
             e.reply('操作失败，请稍后重试');
@@ -208,7 +208,7 @@ export class MCPush extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#mc推送玩家\s+(\S+)\s+(\S+)$/);
+            const match = e.msg.match(/^#[Mm][Cc]推送玩家\s+(\S+)\s+(\S+)$/);
             if (!match) {
                 e.reply('格式错误\n用法: #mc推送玩家 <服务器ID/IP> <玩家名/all>');
                 return;
@@ -268,7 +268,7 @@ export class MCPush extends plugin {
                 Data.write('subscriptions', subscriptions);
                 e.reply(`已添加对玩家 ${playerName} 的动态推送`);
             } else {
-                e.reply('��玩家已在推送列表中');
+                e.reply('该玩家已在推送列表中');
             }
         } catch (error) {
             console.error('配置推送失败:', error);
@@ -280,36 +280,68 @@ export class MCPush extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#mc(开启|关闭)新人推送\\s+(\\S+)$/);
+            const match = e.msg.match(/^#[Mm][Cc](开启|关闭)新人推送\s+(\S+)$/);
             if (!match) {
-                e.reply('格式错误\n用法: #mc开启新人推送 <服务器ID>');
+                e.reply('格式错误\n用法: #mc开启新人推送 <服务器ID/IP>');
                 return;
             }
 
             const [, action, serverIdentifier] = match;
             const isEnable = action === '开启';
             const servers = Data.read('servers');
+            const subscriptions = Data.read('subscriptions');
 
             // 查找服务器信息
-            let serverId;
+            let serverAddress;
+            let serverName;
             if (/^\d+$/.test(serverIdentifier)) {
-                serverId = parseInt(serverIdentifier);
+                // 通过ID查找
+                const serverId = parseInt(serverIdentifier);
                 const server = servers[e.group_id]?.find(s => s.id === serverId);
                 if (!server) {
                     e.reply(`未找到ID为 ${serverId} 的服务器`);
                     return;
                 }
+                serverAddress = server.address;
+                serverName = server.name;
             } else {
-                e.reply('请使用服务器ID');
-                return;
+                // 直接使用IP地址
+                serverAddress = serverIdentifier;
+                serverName = serverIdentifier;
+                // 验证服务器是否在列表中
+                if (!Object.values(servers).some(groupServers => 
+                    groupServers.some(s => s.address === serverAddress)
+                )) {
+                    e.reply('该服务器未在任何群组中添加');
+                    return;
+                }
             }
 
-            // 更新配置
-            Data.updateGroupServerConfig(e.group_id, serverId, {
-                newPlayerAlert: isEnable
-            });
+            // 初始化群组配置
+            if (!subscriptions[e.group_id]) {
+                subscriptions[e.group_id] = {
+                    enabled: true,
+                    servers: {},
+                    newPlayerAlert: false,
+                    serverStatusPush: false
+                };
+            }
+
+            // 初始化服务器配置
+            if (!subscriptions[e.group_id].servers[serverAddress]) {
+                subscriptions[e.group_id].servers[serverAddress] = {
+                    serverName: serverName,
+                    enabled: true,
+                    newPlayerAlert: false,
+                    players: []
+                };
+            }
+
+            // 更新新人推送设置
+            subscriptions[e.group_id].servers[serverAddress].newPlayerAlert = isEnable;
+            Data.write('subscriptions', subscriptions);
             
-            e.reply(`已${isEnable ? '开启' : '关闭'}服务器 ${serverId} 的新玩家提醒`);
+            e.reply(`已${isEnable ? '开启' : '关闭'}服务器 ${serverName} 的新玩家提醒`);
         } catch (error) {
             console.error('操作新玩家提醒失败:', error);
             e.reply('操作失败，请稍后重试');
@@ -320,7 +352,7 @@ export class MCPush extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#mc取消推送\s+(\S+)\s+(\S+)$/);
+            const match = e.msg.match(/^#[Mm][Cc]取消推送\s+(\S+)\s+(\S+)$/);
             if (!match) {
                 e.reply('格式错误\n用法: #mc取消推送 <服务器ID/IP> <玩家名/all>');
                 return;
