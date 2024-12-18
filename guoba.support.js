@@ -1,11 +1,8 @@
-import { Config } from './components/index.js'
 import fs from 'fs'
 import lodash from 'lodash'
 import YAML from 'yaml'
 
 const Path = process.cwd()
-const Plugin_Name = 'mctool-plugin'
-const Plugin_Path = `${Path}/plugins/${Plugin_Name}`
 const Config_File = `${Path}/config/mctool.yaml`
 
 // 读取配置文件
