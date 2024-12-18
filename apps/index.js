@@ -1,6 +1,6 @@
-import { MCServer } from '../apps/mc-server.js'
-import { MCPush } from '../apps/mc-push.js'
-import { MCAuth } from '../apps/mc-auth.js'
-import { helpApp } from '../apps/help.js'
+import { MCServer } from './mc-server.js'
+import { MCPush } from './mc-push.js'
+import { MCAuth } from './mc-auth.js'
+import { helpApp } from './help.js'
 
 export { MCServer, MCPush, MCAuth, helpApp }
