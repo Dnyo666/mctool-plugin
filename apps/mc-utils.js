@@ -2,24 +2,65 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
-import { Config } from '#components';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 数据目录和文件路径
-const DATA_DIR = path.join(__dirname, '..', 'data', 'MCServer');
-const PATHS = {
-    servers: path.join(DATA_DIR, 'servers.json'),
-    players: path.join(DATA_DIR, 'players.json'),
-    subscriptions: path.join(DATA_DIR, 'subscriptions.json'),
-    historical: path.join(DATA_DIR, 'historical.json')
+const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'MCServer');
+const CONFIG_DIR = path.join(__dirname, '..', '..', 'config');
+const DEFAULT_CONFIG_DIR = path.join(__dirname, '..', '..', 'config', 'default_config');
+
+// 确保配置目录存在
+if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+}
+if (!fs.existsSync(DEFAULT_CONFIG_DIR)) {
+    fs.mkdirSync(DEFAULT_CONFIG_DIR, { recursive: true });
+}
+
+// 默认配置
+const DEFAULT_CONFIG = {
+    checkInterval: 1,
+    maxServers: 10,
+    pushFormat: '【MC服务器推送】{player} 已{action} {server}',
+    apiTimeout: 5
 };
 
 // 获取配置
 export function getConfig(key) {
-    const config = Config.getConfig('mctool');
-    return key ? config[key] : config;
+    try {
+        const configPath = path.join(CONFIG_DIR, 'mctool.yaml');
+        const defaultConfigPath = path.join(DEFAULT_CONFIG_DIR, 'mctool.yaml');
+
+        // 如果配置文件不存在，创建默认配置
+        if (!fs.existsSync(defaultConfigPath)) {
+            fs.writeFileSync(defaultConfigPath, 
+                Object.entries(DEFAULT_CONFIG)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join('\n')
+            );
+        }
+        if (!fs.existsSync(configPath)) {
+            fs.copyFileSync(defaultConfigPath, configPath);
+        }
+
+        // 读取配置
+        const config = fs.readFileSync(configPath, 'utf8')
+            .split('\n')
+            .reduce((acc, line) => {
+                const [key, value] = line.split(':').map(s => s.trim());
+                if (key && value) {
+                    acc[key] = isNaN(value) ? value : Number(value);
+                }
+                return acc;
+            }, {});
+
+        return key ? config[key] : config;
+    } catch (error) {
+        console.error('读取配置文件失败:', error);
+        return key ? DEFAULT_CONFIG[key] : DEFAULT_CONFIG;
+    }
 }
 
 // 初始化数据目录和文件

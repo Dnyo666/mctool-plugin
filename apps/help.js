@@ -1,98 +1,55 @@
-import { App, Render } from '#components'
-import lodash from 'lodash'
-import { help as helpUtil } from '#models'
+import plugin from '../../../lib/plugins/plugin.js';
+import common from '../../../lib/common/common.js';
 
-const app = {
-  /** 功能ID */
-  id: 'mctool',
-  /** 功能名称 */
-  name: 'MCTool'
-}
-
-export const rule = {
-  help: {
-    /** 命令正则匹配 */
-    reg: /^#?(mc|mctool)(插件|plugin)?(帮助|菜单|help)$/i,
-    /** 执行方法 */
-    fnc: help,
-    /** 权限 */
-    permission: 'all'
-  }
-}
-
-export const helpApp = new App(app, rule).create()
-
-// 定义帮助菜单内容
-helpUtil.helpList.push({
-  group: 'MCTool',
-  list: [
-    {
-      icon: 1,
-      title: '#mc帮助',
-      desc: '显示帮助信息'
-    },
-    {
-      icon: 2,
-      title: '#mc列表',
-      desc: '查看服务器状态'
-    },
-    {
-      icon: 3,
-      title: '#mc在线',
-      desc: '查看在线玩家'
-    },
-    {
-      icon: 4,
-      title: '#mc添加',
-      desc: '添加服务器(管理)'
-    },
-    {
-      icon: 5,
-      title: '#mc删除',
-      desc: '删除服务器(管理)'
-    },
-    {
-      icon: 6,
-      title: '#mc推送',
-      desc: '玩家动态推送(管理)'
-    }
-  ]
-})
-
-async function help(e) {
-  const helpGroup = []
-
-  lodash.forEach(helpUtil.helpList, (group) => {
-    if (group.auth && group.auth === 'master' && !e.isMaster) {
-      return true
+export class helpApp extends plugin {
+    constructor() {
+        super({
+            name: 'MCTool-帮助',
+            dsc: 'MC服务器管理帮助',
+            event: 'message',
+            priority: 5000,
+            rule: [
+                {
+                    reg: '^#?(mc|mctool)(插件|plugin)?(帮助|菜单|help)$',
+                    fnc: 'help'
+                }
+            ]
+        });
     }
 
-    lodash.forEach(group.list, (help) => {
-      const icon = help.icon * 1
-      if (!icon) {
-        help.css = 'display:none'
-      } else {
-        const x = (icon - 1) % 10
-        const y = (icon - x - 1) / 10
-        help.css = `background-position:-${x * 50}px -${y * 50}px`
-      }
-    })
+    async help(e) {
+        const helpText = `MC服务器管理系统
+版本：1.0.0
+作者：浅巷墨黎
 
-    helpGroup.push(group)
-  })
+基础指令：
+#mc帮助 - 显示本帮助
+#mc列表 - 查看服务器列表
+#mc在线 - 查看在线玩家
 
-  const themeData = await helpUtil.helpTheme.getThemeData(helpUtil.helpCfg)
-  const img = await Render.render('help/index', {
-    helpCfg: helpUtil.helpCfg,
-    helpGroup,
-    ...themeData,
-    scale: 1.4
-  })
+管理指令：
+#mc添加 <名称> <IP:端口> [描述] - 添加服务器
+#mc删除 <ID> - 删除指定服务器
 
-  if (img) {
-    await e.reply(img)
-  } else {
-    e.reply('生成帮助图片失败，请稍后重试')
-  }
-  return true
+推送设置：
+#mc开启推送 - 开启玩家推送
+#mc关闭推送 - 关闭玩家推送
+#mc推送 <服务器ID> <玩家名/all> - 设置推送
+#mc取消推送 <服务器ID> <玩家名> - 取消推送
+#mc开启新人推送 - 开启新玩家提醒
+#mc关闭新人推送 - 关闭新玩家提醒
+#mcpushlist - 查看当前推送配置
+
+示例：
+#mc添加 生存服 play.abc.com:25565 这是一个生存服
+#mc推送 1 all - 推送所有玩家的上下线
+#mc推送 1 Steve - 仅推送玩家Steve的上下线
+#mc取消推送 1 Steve - 取消对Steve的推送
+
+项目地址：https://github.com/Dnyo666/mctool-plugin
+交流群：303104111`;
+
+        await e.reply(helpText);
+        return true;
+    }
 }

@@ -28,7 +28,7 @@ export class MCPush extends plugin {
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc(开启|关闭)新人推送$',
+                    reg: '^#mc(开���|关闭)新人推送$',
                     fnc: 'toggleNewPlayerAlert',
                     permission: 'admin'
                 },
@@ -36,6 +36,11 @@ export class MCPush extends plugin {
                     reg: '^#mc取消推送\\s+\\S+\\s+\\S+',
                     fnc: 'cancelPush',
                     permission: 'admin'
+                },
+                {
+                    reg: '^#mcpushlist$',
+                    fnc: 'getPushConfig',
+                    permission: 'all'
                 }
             ]
         });
@@ -73,7 +78,7 @@ export class MCPush extends plugin {
                         await this.notifyChanges(groupId, server, changes, subscriptions[groupId]);
                     }
 
-                    // 检测新���家
+                    // 检测新家
                     if (subscriptions[groupId].newPlayerAlert) {
                         await this.checkNewPlayers(groupId, server, newPlayers);
                     }
@@ -276,6 +281,51 @@ export class MCPush extends plugin {
         } catch (error) {
             console.error('取消推送失败:', error);
             e.reply('取消推送失败，请稍后重试');
+        }
+    }
+
+    async getPushConfig(e) {
+        try {
+            const subscriptions = Data.read('subscriptions');
+            const servers = Data.read('servers');
+
+            // 获取当前群组的配置
+            const groupConfig = subscriptions[e.group_id];
+            if (!groupConfig || Object.keys(groupConfig.servers).length === 0) {
+                e.reply('当前群聊未配置任何推送');
+                return;
+            }
+
+            const configList = [];
+            configList.push(`推送状态: ${groupConfig.enabled ? '已开启' : '已关闭'}`);
+            configList.push(`新玩家提醒: ${groupConfig.newPlayerAlert ? '已开启' : '关闭'}`);
+            configList.push('\n已配置的服务器:');
+
+            // 遍历所有配置的服务器
+            for (const [serverId, serverConfig] of Object.entries(groupConfig.servers)) {
+                const server = servers[e.group_id]?.find(s => s.id === parseInt(serverId));
+                if (!server) continue;
+
+                const playerConfig = serverConfig.players.includes('all') 
+                    ? '所有玩家' 
+                    : serverConfig.players.length > 0 
+                        ? `指定玩家: ${serverConfig.players.join(', ')}` 
+                        : '无玩家配置';
+
+                configList.push(`\n服务器: ${server.name}`);
+                configList.push(`地址: ${server.address}`);
+                configList.push(`推送配置: ${playerConfig}`);
+            }
+
+            // 如果配置信息较多，使用转发消息
+            if (configList.length > 15) {
+                await this.sendForwardMsg(e, configList);
+            } else {
+                e.reply(configList.join('\n'));
+            }
+        } catch (error) {
+            console.error('获取推送配置时发生错误:', error);
+            e.reply('获取推送配置失败，请稍后重试');
         }
     }
 } 
