@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
+import YAML from 'yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,97 +10,70 @@ const __dirname = path.dirname(__filename);
 // 数据目录和文件路径
 const YUNZAI_DIR = path.join(__dirname, '..', '..', '..');  // Yunzai-Bot 根目录
 const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目录
-const CONFIG_DIR = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin', 'config');  // 插件配置目录
-const DEFAULT_CONFIG_DIR = path.join(CONFIG_DIR, 'default_config');
+const CONFIG_FILE = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin', 'config', 'mctool.yaml');  // 配置文件路径
 
 // 确保目录存在
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
-}
-if (!fs.existsSync(DEFAULT_CONFIG_DIR)) {
-    fs.mkdirSync(DEFAULT_CONFIG_DIR, { recursive: true });
 }
 
 // 数据文件路径
 export const PATHS = {
     servers: path.join(DATA_DIR, 'servers.json'),         // 群组服务器列表
     current: path.join(DATA_DIR, 'currentPlayers.json'),  // 当前在线玩家
-    changes: path.join(DATA_DIR, 'playerChanges.json'),   // 家变动记录
+    changes: path.join(DATA_DIR, 'playerChanges.json'),   // 玩家变动记录
     subscriptions: path.join(DATA_DIR, 'groupSubscriptions.json'), // 群组推送订阅配置
-    historical: path.join(DATA_DIR, 'historicalPlayers.json')  // 历史玩家记录
+    historical: path.join(DATA_DIR, 'historicalPlayers.json'),  // 历史玩家记录
 };
 
 // 默认配置
 const DEFAULT_CONFIG = {
-    checkInterval: 1,
+    checkInterval: 5,
     maxServers: 10,
+    apiTimeout: 10,
     pushFormat: {
-        join: '【MC服务器推送】{player}已进入{server}',
-        leave: '【MC服务器推送】{player}已下线{server}',
-        newPlayer: '【MC服务器推送】发现新玩家{player}进入服务器{server}',
-        serverOnline: '【MC服务器推送】{server}已上线',
-        serverOffline: '【MC服务器推送】{server}已离线'
+        join: '玩家 {player} 加入了 {server} 服务器',
+        leave: '玩家 {player} 离开了 {server} 服务器',
+        newPlayer: '欢迎新玩家 {player} 首次加入 {server} 服务器！',
+        serverOnline: '{server} 服务器已上线',
+        serverOffline: '{server} 服务器已离线'
     },
-    apiTimeout: 5
+    auth: {
+        apiUrl: 'https://api.mojang.com',
+        requestTimeout: 5000,
+        maxUsernameLength: 16,
+        debug: false
+    }
 };
 
 // 获取配置
 export function getConfig(key) {
     try {
-        const configPath = path.join(CONFIG_DIR, 'mctool.yaml');
-        const defaultConfigPath = path.join(DEFAULT_CONFIG_DIR, 'mctool.yaml');
-
+        const configFile = path.join(process.cwd(), 'config', 'mctool.yaml');
         // 如果配置文件不存在，创建默认配置
-        if (!fs.existsSync(defaultConfigPath)) {
-            fs.writeFileSync(defaultConfigPath, 
-                Object.entries(DEFAULT_CONFIG)
-                    .map(([k, v]) => {
-                        if (typeof v === 'object') {
-                            return `${k}:\n${Object.entries(v)
-                                .map(([subK, subV]) => `  ${subK}: ${subV}`)
-                                .join('\n')}`;
-                        }
-                        return `${k}: ${v}`;
-                    })
-                    .join('\n')
-            );
-        }
-        if (!fs.existsSync(configPath)) {
-            fs.copyFileSync(defaultConfigPath, configPath);
+        if (!fs.existsSync(configFile)) {
+            fs.writeFileSync(configFile, YAML.stringify(DEFAULT_CONFIG), 'utf8');
         }
 
         // 读取配置
-        const config = {};
-        const content = fs.readFileSync(configPath, 'utf8');
-        let currentKey = '';
-        
-        content.split('\n').forEach(line => {
-            line = line.trim();
-            if (!line || line.startsWith('#')) return;
-            
-            if (!line.startsWith(' ')) {
-                const [key, value] = line.split(':').map(s => s.trim());
-                if (value) {
-                    config[key] = isNaN(value) ? value : Number(value);
-                } else {
-                    currentKey = key;
-                    config[key] = {};
-                }
-            } else {
-                const [key, value] = line.split(':').map(s => s.trim());
-                if (currentKey && key && value) {
-                    config[currentKey][key] = value;
-                }
-            }
-        });
-
+        const config = YAML.parse(fs.readFileSync(configFile, 'utf8'));
         return key ? config[key] : config;
     } catch (error) {
         console.error('读取配置文件失败:', error);
         return key ? DEFAULT_CONFIG[key] : DEFAULT_CONFIG;
+    }
+}
+
+// 保存配置
+export function saveConfig(config) {
+    try {
+        const configFile = path.join(process.cwd(), 'config', 'mctool.yaml');
+        const yaml = YAML.stringify(config);
+        fs.writeFileSync(configFile, yaml, 'utf8');
+        return true;
+    } catch (error) {
+        console.error('保存配置文件失败:', error);
+        return false;
     }
 }
 
@@ -123,7 +97,7 @@ export const Data = {
         try {
             return JSON.parse(fs.readFileSync(PATHS[type], 'utf8'));
         } catch (error) {
-            console.error(`读取${type}数据失败:`, error);
+            console.error(`读取${type}据失败:`, error);
             return {};
         }
     },

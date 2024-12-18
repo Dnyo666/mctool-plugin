@@ -21,12 +21,17 @@ export class MCAuth extends plugin {
             priority: 5000,
             rule: [
                 {
-                    reg: '^#[Mm][Cc]验证\\s*(开启|关闭)?$',
+                    reg: '^#[Mm][Cc]验证$',
+                    fnc: 'showAuthConfig',
+                    permission: 'admin'
+                },
+                {
+                    reg: '^#[Mm][Cc]验证\\s+(开启|关闭)$',
                     fnc: 'handleAuth',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证\\s*(重复使用|拒绝)\\s*(开启|关闭)$',
+                    reg: '^#[Mm][Cc]验证\\s+(重复使用|拒绝)\\s+(开启|关闭)$',
                     fnc: 'configureAuth',
                     permission: 'admin'
                 },
@@ -61,14 +66,8 @@ export class MCAuth extends plugin {
     async handleAuth(e) {
         if (!await checkGroupAdmin(e)) return;
 
-        const match = e.msg.match(/^#[Mm][Cc]验证\s*(开启|关闭)?$/);
-        if (!match[1]) {
-            // 显示当前配置
-            return await this.showAuthConfig(e);
-        }
-
         try {
-            const isEnable = match[1] === '开启';
+            const isEnable = e.msg.match(/开启/);
             const config = Data.read('auth_config');
             
             if (!config.groups[e.group_id]) {
