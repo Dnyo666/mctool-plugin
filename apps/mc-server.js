@@ -16,24 +16,24 @@ export class MCServer extends plugin {
             rule: [
                 {
                     /** 命令正则匹配 */
-                    reg: '^#mc列表$',
+                    reg: '^#[Mm][Cc]列表$',
                     /** 执行方法 */
                     fnc: 'getServersStatus',
                     /** 权限 */
                     permission: 'all'
                 },
                 {
-                    reg: '^#mc添加\\s+.+\\s+.+\\s*.*$',
+                    reg: '^#[Mm][Cc]添加\\s+.+\\s+.+\\s*.*$',
                     fnc: 'addServer',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc删除\\s+\\d+$',
+                    reg: '^#[Mm][Cc]删除\\s+\\d+$',
                     fnc: 'deleteServer',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#mc在线$',
+                    reg: '^#[Mm][Cc]在线$',
                     fnc: 'getOnlinePlayers',
                     permission: 'all'
                 }
@@ -47,7 +47,7 @@ export class MCServer extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#mc添加\s+(\S+)\s+(\S+)(?:\s+(.*))?$/);
+            const match = e.msg.match(/^#[Mm][Cc]添加\s+(\S+)\s+(\S+)(?:\s+(.*))?$/);
             if (!match) {
                 e.reply('格式错误\n用法: #mc添加 [名称] [地址:端口] [描述]');
                 return;

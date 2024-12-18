@@ -1,96 +1,217 @@
+import { Config } from './components/index.js'
+import fs from 'fs'
 import lodash from 'lodash'
-import { Config } from '#components'
-import { setting } from '#models'
-import { CONFIG } from './apps/mc-utils.js'
+
+const Path = process.cwd()
+const Plugin_Name = 'mctool-plugin'
+const Plugin_Path = `${Path}/plugins/${Plugin_Name}`
 
 export function supportGuoba() {
-    return {
-        // 插件信息
-        pluginInfo: {
-            name: 'mctool-plugin',
-            title: 'MCTool',
-            author: CONFIG.author,
-            authorLink: CONFIG.github,
-            link: CONFIG.github,
-            isV3: true,
-            isV2: false,
-            description: CONFIG.pluginDesc,
-            // 使用Minecraft相关图标
-            icon: 'mdi:minecraft'
+  return {
+    // 插件信息，将会显示在前端页面
+    pluginInfo: {
+      name: 'MCTool-Plugin',
+      title: 'MC服务器管理',
+      author: '@浅巷墨黎',
+      authorLink: 'https://github.com/Dnyo666',
+      link: 'https://github.com/Dnyo666/mctool-plugin',
+      isV3: true,
+      isV2: false,
+      description: 'Minecraft服务器管理插件，提供服务器状态监控、玩家动态推送等功能',
+      // 显示图标，此为个性化配置
+      icon: 'mdi:minecraft',
+      // 图标颜色，例：#FF0000 或 rgb(255, 0, 0)
+      iconColor: '#7CBA3B',
+      // 如果想要显示成图片，也可以填写图片链接
+      iconPath: ''
+    },
+    // 配置项信息
+    configInfo: {
+      // 配置项 schemas
+      schemas: [
+        {
+          field: 'checkInterval',
+          label: '检查间隔',
+          bottomHelpMessage: '服务器状态检查间隔（分钟）',
+          component: 'InputNumber',
+          required: true,
+          componentProps: {
+            min: 1,
+            max: 60,
+            placeholder: '请输入检查间隔'
+          }
         },
-        // 配置信息
-        configInfo: {
-            // 配置项
-            schemas: [
-                {
-                    field: 'mctool.checkInterval',
-                    label: '检查间隔',
-                    bottomHelpMessage: '服务器状态检查间隔（分钟）',
-                    component: 'InputNumber',
-                    required: true,
-                    componentProps: {
-                        min: 1,
-                        max: 60,
-                        placeholder: '请输入检查间隔'
-                    }
-                },
-                {
-                    field: 'mctool.maxServers',
-                    label: '最大服务器数',
-                    bottomHelpMessage: '每个群可添加的最大服务器数量',
-                    component: 'InputNumber',
-                    required: true,
-                    componentProps: {
-                        min: 1,
-                        max: 100,
-                        placeholder: '请输入最大服务器数'
-                    }
-                },
-                {
-                    field: 'mctool.pushFormat',
-                    label: '推送格式',
-                    bottomHelpMessage: '玩家动态推送消息格式',
+        {
+          field: 'maxServers',
+          label: '最大服务器数',
+          bottomHelpMessage: '每个群可添加的最大服务器数量',
+          component: 'InputNumber',
+          required: true,
+          componentProps: {
+            min: 1,
+            max: 100,
+            placeholder: '请输入最大服务器数'
+          }
+        },
+        {
+          field: 'apiTimeout',
+          label: 'API超时',
+          bottomHelpMessage: 'API请求超时时间（秒）',
+          component: 'InputNumber',
+          required: true,
+          componentProps: {
+            min: 1,
+            max: 30,
+            placeholder: '请输入超时时间'
+          }
+        },
+        {
+          field: 'pushFormat',
+          label: '推送格式',
+          bottomHelpMessage: '推送消息格式配置',
+          component: 'Collapse',
+          componentProps: {
+            collapseList: [
+              {
+                head: '玩家动态推送',
+                children: [
+                  {
+                    field: 'join',
+                    label: '玩家上线',
+                    bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
                     component: 'Input',
                     required: true,
                     componentProps: {
-                        placeholder: '例如：【MC服务器推送】{player} 已{action} {server}'
+                      placeholder: '请输入上线消息格式'
                     }
-                },
-                {
-                    field: 'mctool.apiTimeout',
-                    label: 'API超时',
-                    bottomHelpMessage: '服务器状态查询超时时间（秒）',
+                  },
+                  {
+                    field: 'leave',
+                    label: '玩家下线',
+                    bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
+                    component: 'Input',
+                    required: true,
+                    componentProps: {
+                      placeholder: '请输入下线消息格式'
+                    }
+                  },
+                  {
+                    field: 'newPlayer',
+                    label: '新玩家提醒',
+                    bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
+                    component: 'Input',
+                    required: true,
+                    componentProps: {
+                      placeholder: '请输入新玩家提醒格式'
+                    }
+                  }
+                ]
+              },
+              {
+                head: '服务器状态推送',
+                children: [
+                  {
+                    field: 'serverOnline',
+                    label: '服务器上线',
+                    bottomHelpMessage: '变量：{server}服务器名',
+                    component: 'Input',
+                    required: true,
+                    componentProps: {
+                      placeholder: '请输入服务器上线消息格式'
+                    }
+                  },
+                  {
+                    field: 'serverOffline',
+                    label: '服务器离线',
+                    bottomHelpMessage: '变量：{server}服务器名',
+                    component: 'Input',
+                    required: true,
+                    componentProps: {
+                      placeholder: '请输入服务器离线消息格式'
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          field: 'auth',
+          label: '验证配置',
+          bottomHelpMessage: '正版验证功能配置',
+          component: 'Collapse',
+          componentProps: {
+            collapseList: [
+              {
+                head: '验证API设置',
+                children: [
+                  {
+                    field: 'apiUrl',
+                    label: 'API地址',
+                    bottomHelpMessage: '验证服务器API地址',
+                    component: 'Input',
+                    required: true,
+                    componentProps: {
+                      placeholder: '请输入API地址'
+                    }
+                  },
+                  {
+                    field: 'requestTimeout',
+                    label: '请求超时',
+                    bottomHelpMessage: '验证请求超时时间（毫秒）',
                     component: 'InputNumber',
                     required: true,
                     componentProps: {
-                        min: 1,
-                        max: 30,
-                        placeholder: '请输入超时时间'
+                      min: 1000,
+                      max: 30000,
+                      placeholder: '请输入超时时间'
                     }
-                }
-            ],
-
-            // 获取配置数据
-            getConfigData() {
-                const data = {}
-                for (const file of Config.files) {
-                    const name = file.replace('.yaml', '')
-                    data[name] = Config.getDefOrConfig(name)
-                }
-                return data
-            },
-
-            // 设置配置数据
-            setConfigData(data, { Result }) {
-                const config = Config.getCfg()
-
-                for (const key in data) {
-                    const split = key.split('.')
-                    if (lodash.isEqual(config[split[1]], data[key])) continue
-                    Config.modify(split[0], split[1], data[key])
-                }
-                return Result.ok({}, '保存成功')
-            }
+                  },
+                  {
+                    field: 'maxUsernameLength',
+                    label: '用户名长度',
+                    bottomHelpMessage: 'MC用户名最大长度限制',
+                    component: 'InputNumber',
+                    required: true,
+                    componentProps: {
+                      min: 3,
+                      max: 26,
+                      placeholder: '请输入最大长度'
+                    }
+                  },
+                  {
+                    field: 'debug',
+                    label: '调试模式',
+                    bottomHelpMessage: '是否开启调试模式',
+                    component: 'Switch'
+                  }
+                ]
+              }
+            ]
+          }
         }
+      ],
+      // 获取配置数据方法（用于前端填充显示数据）
+      getConfigData() {
+        try {
+          const config = fs.readFileSync(`${Plugin_Path}/config/config/mctool.yaml`, 'utf8')
+          return YAML.parse(config)
+        } catch (err) {
+          logger.error('[MCTool-Plugin] 获取配置失败:', err)
+          return {}
+        }
+      },
+      // 设置配置的方法（前端点确定后调用的方法）
+      setConfigData(data, { Result }) {
+        try {
+          const yaml = YAML.stringify(data)
+          fs.writeFileSync(`${Plugin_Path}/config/config/mctool.yaml`, yaml, 'utf8')
+          return Result.ok({}, '保存成功~')
+        } catch (err) {
+          logger.error('[MCTool-Plugin] 保存配置失败:', err)
+          return Result.error('保存失败！')
+        }
+      }
     }
+  }
 }

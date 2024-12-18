@@ -377,7 +377,7 @@ export class MCPush extends plugin {
             }
 
             if (!subscriptions[e.group_id]?.servers[serverAddress]) {
-                e.reply('未找到该服务器的推送配置');
+                e.reply('未找到该服务器的推��配置');
                 return;
             }
 

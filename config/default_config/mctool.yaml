@@ -6,12 +6,20 @@ checkInterval: 1
 # 每个群可添加的最大服务器数量
 maxServers: 10
 
-# 玩家动态推送消息格式
-# 可用变量：
-# {player} - 玩家名
-# {action} - 动作（进入/离开）
-# {server} - 服务器名
-pushFormat: '【MC服务器推送】{player} 已{action} {server}'
+# 推送消息格式
+pushFormat:
+  join: '【MC服务器推送】{player}已进入{server}'
+  leave: '【MC服务器推送】{player}已下线{server}'
+  newPlayer: '【MC服务器推送】发现新玩家{player}进入服务器{server}'
+  serverOnline: '【MC服务器推送】{server}已上线'
+  serverOffline: '【MC服务器推送】{server}已离线'
 
 # API超时时间（秒）
-apiTimeout: 5 
+apiTimeout: 5
+
+# 验证功能全局配置
+auth:
+  apiUrl: 'https://uapis.cn/api/mcinfo'  # 验证API地址
+  requestTimeout: 10000  # 验证请求超时时间（毫秒）
+  maxUsernameLength: 16  # MC用户名最大长度
+  debug: false  # 是否开启调试模式
