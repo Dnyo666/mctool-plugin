@@ -27,7 +27,7 @@ if (!fs.existsSync(DEFAULT_CONFIG_DIR)) {
 export const PATHS = {
     servers: path.join(DATA_DIR, 'servers.json'),         // 群组服务器列表
     current: path.join(DATA_DIR, 'currentPlayers.json'),  // 当前在线玩家
-    changes: path.join(DATA_DIR, 'playerChanges.json'),   // 玩家变动记录
+    changes: path.join(DATA_DIR, 'playerChanges.json'),   // ���家变动记录
     subscriptions: path.join(DATA_DIR, 'groupSubscriptions.json'), // 群组推送订阅配置
     historical: path.join(DATA_DIR, 'historicalPlayers.json')  // 历史玩家记录
 };
@@ -54,7 +54,14 @@ export function getConfig(key) {
         if (!fs.existsSync(defaultConfigPath)) {
             fs.writeFileSync(defaultConfigPath, 
                 Object.entries(DEFAULT_CONFIG)
-                    .map(([k, v]) => `${k}: ${v}`)
+                    .map(([k, v]) => {
+                        if (typeof v === 'object') {
+                            return `${k}:\n${Object.entries(v)
+                                .map(([subK, subV]) => `  ${subK}: ${subV}`)
+                                .join('\n')}`;
+                        }
+                        return `${k}: ${v}`;
+                    })
                     .join('\n')
             );
         }
@@ -63,15 +70,29 @@ export function getConfig(key) {
         }
 
         // 读取配置
-        const config = fs.readFileSync(configPath, 'utf8')
-            .split('\n')
-            .reduce((acc, line) => {
+        const config = {};
+        const content = fs.readFileSync(configPath, 'utf8');
+        let currentKey = '';
+        
+        content.split('\n').forEach(line => {
+            line = line.trim();
+            if (!line || line.startsWith('#')) return;
+            
+            if (!line.startsWith(' ')) {
                 const [key, value] = line.split(':').map(s => s.trim());
-                if (key && value) {
-                    acc[key] = isNaN(value) ? value : Number(value);
+                if (value) {
+                    config[key] = isNaN(value) ? value : Number(value);
+                } else {
+                    currentKey = key;
+                    config[key] = {};
                 }
-                return acc;
-            }, {});
+            } else {
+                const [key, value] = line.split(':').map(s => s.trim());
+                if (currentKey && key && value) {
+                    config[currentKey][key] = value;
+                }
+            }
+        });
 
         return key ? config[key] : config;
     } catch (error) {
@@ -113,6 +134,39 @@ export const Data = {
             console.error(`写入${type}数据失败:`, error);
             return false;
         }
+    },
+
+    // 获取群组的服务器配置
+    getGroupServerConfig(groupId, serverId) {
+        const subscriptions = this.read('subscriptions');
+        if (!subscriptions[groupId]?.servers?.[serverId]) {
+            return {
+                enabled: false,
+                newPlayerAlert: false,
+                players: []
+            };
+        }
+        return subscriptions[groupId].servers[serverId];
+    },
+
+    // 更新群组的服务器配置
+    updateGroupServerConfig(groupId, serverId, config) {
+        const subscriptions = this.read('subscriptions');
+        if (!subscriptions[groupId]) {
+            subscriptions[groupId] = {
+                enabled: false,
+                servers: {}
+            };
+        }
+        if (!subscriptions[groupId].servers[serverId]) {
+            subscriptions[groupId].servers[serverId] = {
+                enabled: false,
+                newPlayerAlert: false,
+                players: []
+            };
+        }
+        Object.assign(subscriptions[groupId].servers[serverId], config);
+        return this.write('subscriptions', subscriptions);
     }
 };
 

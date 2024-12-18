@@ -252,21 +252,36 @@ export class MCPush extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const isEnable = e.msg.includes('开启');
-            const subscriptions = Data.read('subscriptions');
-            
-            if (!subscriptions[e.group_id]) {
-                subscriptions[e.group_id] = {
-                    enabled: false,
-                    servers: {},
-                    newPlayerAlert: false
-                };
+            const match = e.msg.match(/^#mc(开启|关闭)新人推送\\s+(\\S+)$/);
+            if (!match) {
+                e.reply('格式错误\n用法: #mc开启新人推送 <服务器ID>');
+                return;
             }
 
-            subscriptions[e.group_id].newPlayerAlert = isEnable;
-            Data.write('subscriptions', subscriptions);
+            const [, action, serverIdentifier] = match;
+            const isEnable = action === '开启';
+            const servers = Data.read('servers');
+
+            // 查找服务器信息
+            let serverId;
+            if (/^\d+$/.test(serverIdentifier)) {
+                serverId = parseInt(serverIdentifier);
+                const server = servers[e.group_id]?.find(s => s.id === serverId);
+                if (!server) {
+                    e.reply(`未找到ID为 ${serverId} 的服务器`);
+                    return;
+                }
+            } else {
+                e.reply('请使用服务器ID');
+                return;
+            }
+
+            // 更新配置
+            Data.updateGroupServerConfig(e.group_id, serverId, {
+                newPlayerAlert: isEnable
+            });
             
-            e.reply(`已${isEnable ? '开启' : '关闭'}新玩家提醒`);
+            e.reply(`已${isEnable ? '开启' : '关闭'}服务器 ${serverId} 的新玩家提醒`);
         } catch (error) {
             console.error('操作新玩家提醒失败:', error);
             e.reply('操作失败，请稍后重试');
