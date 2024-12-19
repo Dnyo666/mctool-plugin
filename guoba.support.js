@@ -6,7 +6,7 @@ import { dirname, join } from 'path'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-const Config_File = join(__dirname, 'config', 'mctool.yaml')
+const Config_File = join(__dirname, 'config', 'config.yaml')
 
 // 读取配置文件
 function getConfig() {
