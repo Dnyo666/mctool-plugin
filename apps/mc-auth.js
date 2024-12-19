@@ -18,7 +18,7 @@ export class MCAuth extends plugin {
         super({
             name: 'MCTool-验证',
             dsc: 'Minecraft正版用户验证',
-            event: ['message', 'request.group.add'],
+            event: 'message.group',
             priority: 5000,
             rule: [
                 {
@@ -96,7 +96,7 @@ export class MCAuth extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#[Mm][Cc]验证\s*(重复使用|拒绝)\s*(开启|关闭)$/);
+            const match = e.msg.match(/^#[Mm][Cc]验��\s*(重复使用|拒绝)\s*(开启|关闭)$/);
             const [, option, value] = match;
             const isEnable = value === '开启';
             
