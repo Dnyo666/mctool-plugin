@@ -8,10 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 数据目录和文件路径
+const YUNZAI_DIR = path.join(__dirname, '..', '..', '..');  // Yunzai-Bot 根目录
 const PLUGIN_DIR = path.join(__dirname, '..');  // 插件根目录
-const PLUGIN_NAME = 'mctool-plugin';
-const DATA_DIR = path.join(PLUGIN_DIR, 'data');   // 数据存储目录
-const CONFIG_DIR = path.join(PLUGIN_DIR, 'config');  // 配置目录
+const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目录（在 Yunzai 的 data 目录下）
+const CONFIG_DIR = path.join(PLUGIN_DIR, 'config');  // 配置目录（在插件目录下）
 
 // 确保目录存在
 if (!fs.existsSync(DATA_DIR)) {
@@ -21,7 +21,7 @@ if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
 }
 
-// 数据文件路径
+// 数据文件路径（全部存储在 Yunzai 的 data 目录下）
 export const PATHS = {
     servers: path.join(DATA_DIR, 'servers.json'),         // 群组服务器列表
     current: path.join(DATA_DIR, 'currentPlayers.json'),  // 当前在线玩家
@@ -161,7 +161,7 @@ export const Data = {
 // 权限检查
 export async function checkGroupAdmin(e) {
     if (!e.isGroup) {
-        e.reply('该功能仅��群聊使用');
+        e.reply('该功能仅群聊使用');
         return false;
     }
 
@@ -201,7 +201,7 @@ export async function queryServerStatus(address) {
             console.error(`查询服务器超时: ${address}`);
             return { online: false, players: null, timeout: true };
         }
-        console.error(`查询服务器��态失败: ${address}`, error);
+        console.error(`查询服务器状态失败: ${address}`, error);
         return { online: false, players: null };
     }
 }
