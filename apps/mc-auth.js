@@ -64,7 +64,7 @@ export class MCAuth extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const isEnable = e.msg.match(/开启/);
+            const isEnable = e.msg.includes('开启');
             const config = Data.read('auth_config');
             
             if (!config.groups[e.group_id]) {

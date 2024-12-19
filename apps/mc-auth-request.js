@@ -66,7 +66,7 @@ export class MCAuthRequest extends plugin {
         
         // 如果输入符合MC用户名格式，直接使用
         if (MC_USERNAME_REGEX.test(username)) {
-            logger.info(`[MC正���验证] 用户名验证通过: ${username}`);
+            logger.info(`[MC正版验证] 用户名验证通过: ${username}`);
             return { valid: true, username: username };
         }
         
@@ -128,8 +128,18 @@ export class MCAuthRequest extends plugin {
     }
 
     handleUsedUsername(e, username) {
-        this.sendGroupMsg(e.group_id, `用户名 ${username} 已被使用，不允许重复进群`);
-        e.approve(false);
+        const config = Data.read('auth_config');
+        const groupConfig = config.groups[e.group_id];
+
+        if (groupConfig.rejectDuplicate) {
+            // 自动拒绝模式
+            this.sendGroupMsg(e.group_id, `用户名 ${username} 已被使用，已自动拒绝入群申请`);
+            e.approve(false);
+        } else {
+            // 提醒管理员模式
+            this.sendGroupMsg(e.group_id, `⚠️ 注意：用户 ${e.user_id} 申请使用已存在的用户名 ${username} 加群，请管理员手动审核`);
+            return false; // 不处理，让管理员手动审核
+        }
         return true;
     }
 
