@@ -26,12 +26,12 @@ export class MCAuth extends plugin {
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证\\s+(开启|关闭)$',
+                    reg: '^#[Mm][Cc]验证\\s*(开启|关闭)$',
                     fnc: 'handleAuth',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证\\s+(重复使用|拒绝)\\s+(开启|关闭)$',
+                    reg: '^#[Mm][Cc]验证\\s*(重复使用|拒绝)\\s*(开启|关闭)$',
                     fnc: 'configureAuth',
                     permission: 'admin'
                 },
@@ -41,7 +41,7 @@ export class MCAuth extends plugin {
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证删除\\s+\\d+$',
+                    reg: '^#[Mm][Cc]验证删除\\s*\\d+$',
                     fnc: 'removeVerifiedUser',
                     permission: 'admin'
                 }
@@ -219,7 +219,7 @@ export class MCAuth extends plugin {
             await e.reply(msg);
         } catch (error) {
             console.error('发送转发消息失败:', error);
-            e.reply('发送消息失���，请稍后重试');
+            e.reply('发送消息失败，请稍后重试');
         }
     }
 } 
