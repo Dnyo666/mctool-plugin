@@ -1,5 +1,5 @@
 import plugin from '../../../lib/plugins/plugin.js';
-import { Data, initDataFiles } from './mc-utils.js';
+import { Data, initDataFiles, checkGroupAdmin } from './mc-utils.js';
 import common from '../../../lib/common/common.js';
 
 // MC用户名格式验证正则
@@ -219,7 +219,7 @@ export class MCAuth extends plugin {
             await e.reply(msg);
         } catch (error) {
             console.error('发送转发消息失败:', error);
-            e.reply('发送消息失败，请稍后重试');
+            e.reply('发送消息失���，请稍后重试');
         }
     }
 } 
