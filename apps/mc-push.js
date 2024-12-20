@@ -1,5 +1,6 @@
 import { Data, getConfig } from './mc-utils.js';
-import { Bot } from 'icqq';
+import pkg from 'icqq';
+const { Bot } = pkg;
 
 // 格式化推送消息
 export function formatPushMessage(type, data, server) {

@@ -2,7 +2,6 @@ import plugin from '../../../lib/plugins/plugin.js';
 import { Data, checkGroupAdmin, queryServerStatus } from './mc-utils.js';
 import { handleServerStatusChange } from './mc-push.js';
 import schedule from 'node-schedule';
-import log from '../../../lib/plugins/lib/log.js';
 
 export class MCPush extends plugin {
     constructor() {
@@ -71,7 +70,7 @@ export class MCPush extends plugin {
                 }
             }
         } catch (error) {
-            log.error('[MCTool] 检查服务器状态失败:', error);
+            console.error('[MCTool] 检查服务器状态失败:', error);
         }
     }
 
@@ -95,7 +94,7 @@ export class MCPush extends plugin {
             
             e.reply(`已${isEnable ? '开启' : '关闭'}推送功能`);
         } catch (error) {
-            log.error('[MCTool] 操作推送功能失败:', error);
+            console.error('[MCTool] 操作推送功能失败:', error);
             e.reply('操作失败，请稍后重试');
         }
     }
@@ -154,7 +153,7 @@ export class MCPush extends plugin {
                 e.reply('该玩家已在推送列表中');
             }
         } catch (error) {
-            log.error('[MCTool] 配置推送失败:', error);
+            console.error('[MCTool] 配置推送失败:', error);
             e.reply('配置推送失败，请稍后重试');
         }
     }
@@ -203,7 +202,7 @@ export class MCPush extends plugin {
             
             e.reply(`已${isEnable ? '开启' : '关闭'}服务器 ${servers[serverId].name} 的新玩家提醒`);
         } catch (error) {
-            log.error('[MCTool] 操作新玩家提醒失败:', error);
+            console.error('[MCTool] 操作新玩家提醒失败:', error);
             e.reply('操作失败，请稍后重试');
         }
     }
@@ -238,7 +237,7 @@ export class MCPush extends plugin {
             if (playerName.toLowerCase() === 'all') {
                 serverConfig.players = [];
                 Data.write('subscriptions', subscriptions);
-                e.reply(`已取消 ${servers[serverId].name} 的所有��家推送`);
+                e.reply(`已取消 ${servers[serverId].name} 的所有玩家推送`);
                 return;
             }
 
@@ -252,7 +251,7 @@ export class MCPush extends plugin {
             Data.write('subscriptions', subscriptions);
             e.reply(`已取消对玩家 ${playerName} 的推送`);
         } catch (error) {
-            log.error('[MCTool] 取消推送失败:', error);
+            console.error('[MCTool] 取消推送失败:', error);
             e.reply('取消推送失败，请稍后重试');
         }
     }
@@ -283,7 +282,7 @@ export class MCPush extends plugin {
 
             e.reply(configList.join('\n'));
         } catch (error) {
-            log.error('[MCTool] 获取推送配置失败:', error);
+            console.error('[MCTool] 获取推送配置失败:', error);
             e.reply('获取推送配置失败，请稍后重试');
         }
     }
@@ -308,7 +307,7 @@ export class MCPush extends plugin {
             
             e.reply(`已${isEnable ? '开启' : '关闭'}服务器状态推送功能`);
         } catch (error) {
-            log.error('[MCTool] 操作服务器状态推送功能失败:', error);
+            console.error('[MCTool] 操作服务器状态推送功能失败:', error);
             e.reply('操作失败，请稍后重试');
         }
     }
