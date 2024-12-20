@@ -68,7 +68,7 @@ export function getConfig(key) {
         const config = YAML.parse(fs.readFileSync(configFile, 'utf8'));
         return key ? config[key] : config;
     } catch (error) {
-        console.error('读取配置文件失败:', error);
+        logger.error('[MCTool] 读取配置文件失败:', error);
         return key ? DEFAULT_CONFIG[key] : DEFAULT_CONFIG;
     }
 }
@@ -81,7 +81,7 @@ export function saveConfig(config) {
         fs.writeFileSync(configFile, yaml, 'utf8');
         return true;
     } catch (error) {
-        console.error('保存配置文件失败:', error);
+        logger.error('[MCTool] 保存配置文件失败:', error);
         return false;
     }
 }
@@ -109,7 +109,7 @@ export const Data = {
             }
             return JSON.parse(fs.readFileSync(PATHS[type], 'utf8'));
         } catch (error) {
-            console.error(`读取${type}数据失败:`, error);
+            logger.error(`[MCTool] 读取${type}数据失败:`, error);
             return {};
         }
     },
@@ -122,7 +122,7 @@ export const Data = {
             fs.writeFileSync(PATHS[type], JSON.stringify(data, null, 2));
             return true;
         } catch (error) {
-            console.error(`写入${type}数据失败:`, error);
+            logger.error(`[MCTool] 写入${type}数据失败:`, error);
             return false;
         }
     },
@@ -512,7 +512,7 @@ export const CONFIG = {
     version: '1.0.0',
     /** 插件作者 */
     author: '浅巷墨黎',
-    /** 目地址 */
+    /** 项目地址 */
     github: 'https://github.com/Dnyo666/mctool-plugin',
     /** 交流群号 */
     qqGroup: '303104111',
