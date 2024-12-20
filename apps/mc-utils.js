@@ -186,7 +186,7 @@ function sleep(ms) {
 export async function queryServerStatus(address) {
     try {
         const config = getConfig();
-        const timeout = (config.apiTimeout || 30) * 1000;  // 使用更长的超时时间
+        const timeout = (config.apiTimeout || 30) * 1000;
         const maxRetries = config.maxRetries || 3;
         const retryDelay = config.retryDelay || 1000;
 
@@ -194,70 +194,53 @@ export async function queryServerStatus(address) {
         const options = {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
+            },
+            timeout: timeout
         };
 
-        // 如果配置了代理，添加代理
         if (process.env.https_proxy) {
             options.agent = new HttpsProxyAgent(process.env.https_proxy);
         }
 
-        // 处理地址格式
         let [host, port] = address.split(':');
-        port = port || '25565';  // 如果没有指定端口，使用默认端口
+        port = port || '25565';
 
-        // 获取配置的 API 和备用 API
-        const apis = [];
-        // 如果配置了自定义 API，优先使用
-        if (config.customApi) {
-            apis.push(config.customApi.replace('{address}', encodeURIComponent(`${host}:${port}`)));
-        }
-        // 添加备用 API，使用不同的地址格式
-        apis.push(
-            `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(host)}${port === '25565' ? '' : ':' + port}`,
+        const apis = [
+            `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(`${host}:${port}`)}`,
             `https://api.mcsrvstat.us/3/${encodeURIComponent(host)}${port === '25565' ? '' : ':' + port}`
-        );
+        ];
+
+        if (config.customApi) {
+            apis.unshift(config.customApi.replace('{address}', encodeURIComponent(`${host}:${port}`)));
+        }
 
         let lastError = null;
         for (const api of apis) {
-            // 为每个 API 添加重试机制
+            logger.debug(`[MCTool] 尝试查询服务器状态: ${address}`);
+            
             for (let retry = 0; retry < maxRetries; retry++) {
                 try {
                     if (retry > 0) {
-                        logger.info(`[MCTool] 正在重试 API (${retry}/${maxRetries}): ${api}`);
-                        await sleep(retryDelay);  // 重试前等待
-                    } else {
-                        logger.info(`[MCTool] 正在查询 API: ${api}`);
+                        await sleep(retryDelay);
+                        logger.debug(`[MCTool] 重试查询 (${retry}/${maxRetries})`);
                     }
                     
-                    // 使用 Promise.race 和超时控制
-                    const fetchPromise = fetch(api, options);
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Timeout')), timeout);
-                    });
-
-                    const response = await Promise.race([fetchPromise, timeoutPromise]);
-
+                    const response = await fetch(api, options);
+                    
                     if (!response.ok) {
-                        logger.warn(`[MCTool] API ${api} 返回状态码: ${response.status}`);
+                        logger.debug(`[MCTool] API返回状态码: ${response.status}`);
                         continue;
                     }
 
                     const data = await response.json();
                     
-                    // 处理不同 API 的返回格式
                     if (api.includes('mcstatus.io')) {
-                        // 确保数据存在
-                        if (!data.online) {
-                            continue;  // 如果这个 API 返回离线，尝试下一个重试或 API
-                        }
+                        if (!data.online) continue;
 
-                        // 安全地获取玩家列表
                         const playerList = data.players?.list?.filter(p => 
                             p && p.name_raw && !p.name_raw.includes('§')
                         ).map(p => p.name_clean) || [];
                         
-                        // 安全地获取排队信息
                         let queueInfo = '';
                         const queueMatch = data.players?.list?.find(p => 
                             p && p.name_raw && p.name_raw.includes('排队')
@@ -278,12 +261,8 @@ export async function queryServerStatus(address) {
                             software: data.software || ''
                         };
                     } else if (api.includes('mcsrvstat.us')) {
-                        // 确保数据存在
-                        if (!data.online) {
-                            continue;  // 如果这个 API 返回离线，尝试下一个重试或 API
-                        }
+                        if (!data.online) continue;
 
-                        // 安全地获取排队信息
                         let queueInfo = '';
                         if (Array.isArray(data.info?.clean)) {
                             const queueMatch = data.info.clean.find(line => 
@@ -294,7 +273,6 @@ export async function queryServerStatus(address) {
                             }
                         }
 
-                        // 安全地处理 MOTD
                         let motd = '';
                         if (Array.isArray(data.motd?.clean)) {
                             motd = data.motd.clean.filter(line => line).join('\n');
@@ -314,27 +292,21 @@ export async function queryServerStatus(address) {
                             software: data.software || ''
                         };
                     }
-
-                    // 如果成功获取数据，跳出重试循环
                     break;
                 } catch (error) {
                     lastError = error;
-                    if (error.message === 'Timeout') {
-                        logger.warn(`[MCTool] API ${api} 请求超时 (${retry + 1}/${maxRetries})`);
+                    if (error.name === 'AbortError' || error.message === 'Timeout') {
+                        logger.debug(`[MCTool] API请求超时 (${retry + 1}/${maxRetries})`);
                     } else {
-                        logger.error(`[MCTool] API ${api} 查询失败 (${retry + 1}/${maxRetries}):`, error.message);
+                        logger.debug(`[MCTool] API查询失败 (${retry + 1}/${maxRetries}): ${error.message}`);
                     }
                     
-                    // 如果是最后一次重试，继续尝试下一个 API
-                    if (retry === maxRetries - 1) {
-                        continue;
-                    }
+                    if (retry === maxRetries - 1) continue;
                 }
             }
         }
 
-        // 所有 API 和重试都失败了
-        logger.error(`[MCTool] 所有 API 查询失败: ${lastError?.message || '未知错误'}`);
+        logger.warn(`[MCTool] 所有API查询失败: ${lastError?.message || '未知错误'}`);
         return { online: false, players: null };
     } catch (error) {
         logger.error(`[MCTool] 查询服务器状态失败: ${address}`, error);
@@ -440,7 +412,10 @@ export function handleServerStatusChange(serverId, oldStatus, newStatus) {
                     null,
                     serverName
                 );
-                Bot.pickGroup(groupId).sendMsg(message);
+                Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
+                    logger.error(`[MCTool] 发送服务器状态变化消息失败: ${err.message}`);
+                });
+                logger.info(`[MCTool] 服务器 ${serverName} ${newStatus.online ? '上线' : '离线'} 推送至群 ${groupId}`);
             }
             
             // 如果服务器在线，检查玩家变化
@@ -448,35 +423,54 @@ export function handleServerStatusChange(serverId, oldStatus, newStatus) {
                 const oldPlayers = oldStatus?.players?.list || [];
                 const newPlayers = newStatus.players.list;
                 
-                const { joined, left } = comparePlayerLists(oldPlayers, newPlayers);
+                const validOldPlayers = oldPlayers.filter(p => p && !p.includes('§') && !p.includes('排队'));
+                const validNewPlayers = newPlayers.filter(p => p && !p.includes('§') && !p.includes('排队'));
+                
+                const { joined, left } = comparePlayerLists(validOldPlayers, validNewPlayers);
                 
                 // 处理新加入的玩家
                 for (const player of joined) {
-                    // 检查是否为新玩家
                     const isNew = isNewPlayer(serverId, player);
-                    
-                    // 发送消息
                     const message = formatPushMessage(
                         isNew ? 'new' : 'join',
                         player,
                         serverName
                     );
-                    Bot.pickGroup(groupId).sendMsg(message);
+                    Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
+                        logger.error(`[MCTool] 发送玩家加入消息失败: ${err.message}`);
+                    });
+                    logger.info(`[MCTool] 玩家 ${player} ${isNew ? '首次加入' : '加入'} ${serverName} 推送至群 ${groupId}`);
                 }
                 
                 // 处理离开的玩家
                 for (const player of left) {
                     const message = formatPushMessage('leave', player, serverName);
-                    Bot.pickGroup(groupId).sendMsg(message);
+                    Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
+                        logger.error(`[MCTool] 发送玩家离开消息失败: ${err.message}`);
+                    });
+                    logger.info(`[MCTool] 玩家 ${player} 离开 ${serverName} 推送至群 ${groupId}`);
                 }
                 
                 // 更新历史玩家记录
-                if (newPlayers.length > 0) {
-                    const newHistoricalPlayers = updateHistoricalPlayers(serverId, newPlayers);
+                if (validNewPlayers.length > 0) {
+                    const newHistoricalPlayers = updateHistoricalPlayers(serverId, validNewPlayers);
                     if (newHistoricalPlayers.length > 0) {
-                        logger.info(`[MCTool] 服务器 ${serverName} 新增历史玩家: ${newHistoricalPlayers.join(', ')}`);
+                        logger.debug(`[MCTool] 服务器 ${serverName} 新增历史玩家: ${newHistoricalPlayers.join(', ')}`);
                     }
                 }
+                
+                // 记录玩家变动
+                const changes = Data.read('changes');
+                if (!changes[serverId]) {
+                    changes[serverId] = { join: [], leave: [] };
+                }
+                if (joined.length > 0) {
+                    changes[serverId].join.push(...joined);
+                }
+                if (left.length > 0) {
+                    changes[serverId].leave.push(...left);
+                }
+                Data.write('changes', changes);
             }
         }
         
@@ -485,20 +479,6 @@ export function handleServerStatusChange(serverId, oldStatus, newStatus) {
         current[serverId] = newStatus;
         Data.write('current', current);
         
-        // 记录变动
-        const changes = Data.read('changes');
-        if (!changes[serverId]) {
-            changes[serverId] = [];
-        }
-        changes[serverId].push({
-            time: Date.now(),
-            status: newStatus
-        });
-        // 只保留最近 100 条记录
-        if (changes[serverId].length > 100) {
-            changes[serverId] = changes[serverId].slice(-100);
-        }
-        Data.write('changes', changes);
     } catch (error) {
         logger.error(`[MCTool] 处理服务器状态变化失败:`, error);
     }
