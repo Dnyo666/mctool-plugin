@@ -1,4 +1,4 @@
-import { plugin } from '#lib';
+import plugin from '../../../lib/plugins/plugin.js';
 import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles } from './mc-utils.js';
 import common from '../../../lib/common/common.js';
 
@@ -39,9 +39,7 @@ export class MCServer extends plugin {
                 }
             ]
         });
-    }
 
-    async init() {
         initDataFiles();
     }
 
@@ -154,7 +152,7 @@ export class MCServer extends plugin {
             let totalPlayers = 0;
             const onlineServers = [];
             
-            // ��询所有服务器状态
+            // 查询所有服务器状态
             await Promise.all(servers[e.group_id].map(async server => {
                 const status = await queryServerStatus(server.address);
                 if (status.online) {

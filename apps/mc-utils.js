@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import YAML from 'yaml';
 import HttpsProxyAgent from 'https-proxy-agent';
-import { Bot } from '#lib';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -165,7 +164,7 @@ export async function checkGroupAdmin(e) {
         return false;
     }
 
-    const memberInfo = await Bot.getGroupMemberInfo(e.group_id, e.user_id);
+    const memberInfo = await global.Bot.getGroupMemberInfo(e.group_id, e.user_id);
     if (!(['owner', 'admin'].includes(memberInfo.role) || e.isMaster)) {
         e.reply('该功能需要群管理员权限');
         return false;
