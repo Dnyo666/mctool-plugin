@@ -27,7 +27,7 @@ function ensureDirectories() {
 
 // 数据文件路径
 export const PATHS = {
-    servers: path.join(DATA_DIR, 'servers.json'),         // 群组服务器列表
+    servers: path.join(DATA_DIR, 'servers.json'),         // 群组��务器列表
     current: path.join(DATA_DIR, 'currentPlayers.json'),  // 当前在线玩家
     changes: path.join(DATA_DIR, 'playerChanges.json'),   // 玩家变动记录
     subscriptions: path.join(DATA_DIR, 'groupSubscriptions.json'), // 群组推送订阅配置
@@ -42,7 +42,7 @@ export function getConfig(key) {
         const config = YAML.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
         return key ? config[key] : config;
     } catch (error) {
-        logger.error('[MCTool-Plugin] 读取配置文件失败:', error);
+        console.error('[MCTool-Plugin] 读取配置文件失败:', error);
         return key ? null : {};
     }
 }
@@ -54,6 +54,7 @@ export function saveConfig(config) {
         fs.writeFileSync(CONFIG_FILE, yaml, 'utf8');
         return true;
     } catch (error) {
+        console.error('[MCTool-Plugin] 保存配置文件失败:', error);
         return false;
     }
 }
