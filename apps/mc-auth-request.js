@@ -10,22 +10,22 @@ export class MCAuthRequest extends plugin {
             priority: 5000,
             rule: [
                 {
-                    reg: '^#[Mm][Cc]验证请求\\s+\\S+$',
+                    reg: '^#?[Mm][Cc]验证请求\\s+\\S+$',
                     fnc: 'requestVerification',
                     permission: 'all'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证通过\\s+\\S+$',
+                    reg: '^#?[Mm][Cc]验证通过\\s+\\S+$',
                     fnc: 'approveVerification',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证拒绝\\s+\\S+$',
+                    reg: '^#?[Mm][Cc]验证拒绝\\s+\\S+$',
                     fnc: 'rejectVerification',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证请求列表$',
+                    reg: '^#?[Mm][Cc]验证请求列表$',
                     fnc: 'listVerificationRequests',
                     permission: 'admin'
                 }
@@ -181,7 +181,7 @@ export class MCAuthRequest extends plugin {
             e.reply(msg)
         } catch (error) {
             console.error('[MCTool] 获取验证请求列表失败:', error)
-            e.reply('获取列表失败，请稍后重试')
+            e.reply('获���列表失败，请稍后重试')
         }
     }
 } 

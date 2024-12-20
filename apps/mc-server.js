@@ -16,29 +16,29 @@ export class MCServer extends plugin {
             rule: [
                 {
                     /** 命令正则匹配 */
-                    reg: '^#[Mm][Cc]add\\s+\\S+\\s+\\S+\\s*.*$',
+                    reg: '^#?[Mm][Cc](添加|add)\\s+\\S+\\s+\\S+\\s*.*$',
                     /** 执行方法 */
                     fnc: 'addServer',
                     /** 权限 */
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]del\\s+\\S+$',
+                    reg: '^#?[Mm][Cc](删除|del)\\s+\\S+$',
                     fnc: 'deleteServer',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]status$',
+                    reg: '^#?[Mm][Cc](状态|status)$',
                     fnc: 'getServerStatus',
                     permission: 'all'
                 },
                 {
-                    reg: '^#[Mm][Cc]list$',
+                    reg: '^#?[Mm][Cc](列表|list)$',
                     fnc: 'getServerList',
                     permission: 'all'
                 },
                 {
-                    reg: '^#[Mm][Cc]online$',
+                    reg: '^#?[Mm][Cc](在线|online)$',
                     fnc: 'getOnlinePlayers',
                     permission: 'all'
                 }
@@ -50,15 +50,23 @@ export class MCServer extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#[Mm][Cc]add\s+(\S+)\s+(\S+)\s*(.*)$/);
+            const match = e.msg.match(/^#[Mm][Cc](?:add|添加)\s+(\S+)\s+(\S+)\s*(.*)$/);
             if (!match) {
-                e.reply('格式错误\n用法: #mcadd <名称> <地址> [描述]');
+                e.reply('格式错误\n用法: #mc添加 <名称> <地址> [描述]');
                 return;
             }
 
             const [, name, address, description = ''] = match;
-            const servers = Data.read('servers');
+            const servers = Data.getGroupData('servers', e.group_id);
             
+            // 检查服务器数量限制
+            const maxServers = getConfig('maxServers') || 10;
+            if (Object.keys(servers).length >= maxServers) {
+                e.reply(`每个群最多只能添加 ${maxServers} 个服务器`);
+                return;
+            }
+
+            // 检查是否已存在相同地址的服务器
             if (Object.values(servers).some(server => server.address === address)) {
                 e.reply('该服务器地址已存在');
                 return;
@@ -72,7 +80,7 @@ export class MCServer extends plugin {
                 addTime: Date.now()
             };
 
-            Data.write('servers', servers);
+            Data.saveGroupData('servers', e.group_id, servers);
             
             e.reply(`服务器添加成功\n名称: ${name}\n地址: ${address}\n描述: ${description}`);
         } catch (error) {
@@ -85,14 +93,14 @@ export class MCServer extends plugin {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#[Mm][Cc]del\s+(\S+)$/);
+            const match = e.msg.match(/^#[Mm][Cc](?:del|删除)\s+(\S+)$/);
             if (!match) {
-                e.reply('格式错误\n用法: #mcdel <服务器ID>');
+                e.reply('格式错误\n用法: #mc删除 <服务器ID>');
                 return;
             }
 
             const [, serverId] = match;
-            const servers = Data.read('servers');
+            const servers = Data.getGroupData('servers', e.group_id);
 
             if (!servers[serverId]) {
                 e.reply(`未找到ID为 ${serverId} 的服务器`);
@@ -100,18 +108,18 @@ export class MCServer extends plugin {
             }
 
             delete servers[serverId];
-            Data.write('servers', servers);
+            Data.saveGroupData('servers', e.group_id, servers);
             
             e.reply(`已删除ID为 ${serverId} 的服务器`);
         } catch (error) {
             console.error('[MCTool] 删除服务器失败:', error);
-            e.reply('删除服务器失败，请稍后重试');
+            e.reply('删除服务器失败，请稍���重试');
         }
     }
 
     async getServerStatus(e) {
         try {
-            const servers = Data.read('servers');
+            const servers = Data.getGroupData('servers', e.group_id);
             if (Object.keys(servers).length === 0) {
                 e.reply('暂无服务器配置');
                 return;
@@ -142,7 +150,7 @@ export class MCServer extends plugin {
 
     async getServerList(e) {
         try {
-            const servers = Data.read('servers');
+            const servers = Data.getGroupData('servers', e.group_id);
             if (Object.keys(servers).length === 0) {
                 e.reply('暂无服务器配置');
                 return;
@@ -168,7 +176,7 @@ export class MCServer extends plugin {
 
     async getOnlinePlayers(e) {
         try {
-            const servers = Data.read('servers');
+            const servers = Data.getGroupData('servers', e.group_id);
             if (Object.keys(servers).length === 0) {
                 e.reply('暂无服务器配置');
                 return;

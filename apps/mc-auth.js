@@ -10,24 +10,34 @@ export class MCAuth extends plugin {
             priority: 5000,
             rule: [
                 {
-                    reg: '^#[Mm][Cc]验证\\s+\\S+$',
-                    fnc: 'verifyPlayer',
-                    permission: 'all'
-                },
-                {
-                    reg: '^#[Mm][Cc]验证开启$',
-                    fnc: 'enableVerification',
-                    permission: 'admin'
-                },
-                {
-                    reg: '^#[Mm][Cc]验证关闭$',
-                    fnc: 'disableVerification',
-                    permission: 'admin'
-                },
-                {
-                    reg: '^#[Mm][Cc]验证状态$',
+                    reg: '^#?[Mm][Cc]验证\\s*$',
                     fnc: 'getVerificationStatus',
                     permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc]验证\\s+(开启|关闭)$',
+                    fnc: 'toggleVerification',
+                    permission: 'admin'
+                },
+                {
+                    reg: '^#?[Mm][Cc]验证重复使用\\s+(开启|关闭)$',
+                    fnc: 'toggleDuplicateNames',
+                    permission: 'admin'
+                },
+                {
+                    reg: '^#?[Mm][Cc]验证拒绝\\s+(开启|关闭)$',
+                    fnc: 'toggleAutoReject',
+                    permission: 'admin'
+                },
+                {
+                    reg: '^#?[Mm][Cc]验证列表$',
+                    fnc: 'listVerifiedUsers',
+                    permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc]验证删除\\s+\\d+$',
+                    fnc: 'deleteVerification',
+                    permission: 'admin'
                 }
             ]
         });

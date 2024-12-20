@@ -16,32 +16,32 @@ export class MCPush extends plugin {
             },
             rule: [
                 {
-                    reg: '^#[Mm][Cc](开启|关闭)推送$',
+                    reg: '^#?[Mm][Cc](开启|关闭)推送$',
                     fnc: 'togglePush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]推送玩家\\s+\\S+\\s+\\S+',
+                    reg: '^#?[Mm][Cc]推送玩家\\s+\\S+\\s+\\S+$',
                     fnc: 'configurePlayerPush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc](开启|关闭)新人推送\\s+\\S+',
+                    reg: '^#?[Mm][Cc](开启|关闭)新人推送\\s+\\S+$',
                     fnc: 'toggleNewPlayerAlert',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc](开启|关闭)状态推送$',
+                    reg: '^#?[Mm][Cc](开启|关闭)状态推送$',
                     fnc: 'toggleServerStatusPush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]取消推送\\s+\\S+\\s+\\S+',
+                    reg: '^#?[Mm][Cc]取消推送\\s+\\S+\\s+\\S+$',
                     fnc: 'cancelPush',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]pushlist$',
+                    reg: '^#?[Mm][Cc]pushlist$',
                     fnc: 'getPushConfig',
                     permission: 'all'
                 }
@@ -175,7 +175,7 @@ export class MCPush extends plugin {
 
             // 检查服务器是否存在
             if (!servers[serverId]) {
-                e.reply(`未��到ID为 ${serverId} 的服务器`)
+                e.reply(`未找到ID为 ${serverId} 的服务器`)
                 return
             }
 
@@ -288,7 +288,7 @@ export class MCPush extends plugin {
             const groupConfig = subscriptions[e.group_id]
 
             if (!groupConfig || !groupConfig.enabled) {
-                e.reply('当前群组��开启推送功能')
+                e.reply('当前群组未开启推送功能')
                 return
             }
 

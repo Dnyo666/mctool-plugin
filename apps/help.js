@@ -19,7 +19,7 @@ export class helpApp extends plugin {
 
     async help(e) {
         const helpText = `MC服务器管理系统
-版本：1.0.0
+版本：V2.1
 作者：浅巷墨黎
 
 基础指令：
