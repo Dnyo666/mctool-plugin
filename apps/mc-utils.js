@@ -180,16 +180,12 @@ export async function queryServerStatus(address) {
     try {
         const config = getConfig();
         const timeout = (config.apiTimeout || 10) * 1000;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         // 构建请求选项
         const options = {
-            signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            },
-            timeout: timeout
+            }
         };
 
         // 如果配置了代理，添加代理
@@ -212,8 +208,13 @@ export async function queryServerStatus(address) {
         let lastError = null;
         for (const api of apis) {
             try {
-                const response = await fetch(api, options);
-                clearTimeout(timeoutId);
+                // 使用 Promise.race 和超时控制
+                const fetchPromise = fetch(api, options);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Timeout')), timeout);
+                });
+
+                const response = await Promise.race([fetchPromise, timeoutPromise]);
 
                 if (!response.ok) {
                     logger.warn(`[MCTool] API ${api} 返回状态码: ${response.status}`);
@@ -292,7 +293,6 @@ export async function queryServerStatus(address) {
                     };
                 } else {
                     // 处理自定义 API 的返回格式
-                    // 这里需要根据实际的自定义 API 返回格式进行适配
                     return {
                         online: data.online || false,
                         players: data.online ? {
@@ -307,18 +307,19 @@ export async function queryServerStatus(address) {
                 }
             } catch (error) {
                 lastError = error;
-                logger.error(`[MCTool] API ${api} 查询失败:`, error.message);
+                if (error.message === 'Timeout') {
+                    logger.warn(`[MCTool] API ${api} 请求超时`);
+                } else {
+                    logger.error(`[MCTool] API ${api} 查询失败:`, error.message);
+                }
                 continue;
             }
         }
 
         // 所有 API 都失败了
-        throw lastError || new Error('所有 API 查询失败');
+        logger.error(`[MCTool] 所有 API 查询失败: ${lastError?.message || '未知错误'}`);
+        return { online: false, players: null };
     } catch (error) {
-        if (error.name === 'AbortError') {
-            logger.error(`[MCTool] 查询服务器超时: ${address}`);
-            return { online: false, players: null, timeout: true };
-        }
         logger.error(`[MCTool] 查询服务器状态失败: ${address}`, error);
         return { online: false, players: null };
     }
@@ -356,7 +357,7 @@ export function isNewPlayer(player, historicalPlayers) {
     return !historicalPlayers.includes(player);
 }
 
-// 更新历史玩家记录
+// 更新历��玩家记录
 export function updateHistoricalPlayers(serverId, players) {
     const historical = Data.read('historical');
     if (!historical[serverId]) {
