@@ -9,6 +9,11 @@ export class MCPush extends plugin {
             dsc: 'Minecraft服务器推送服务',
             event: 'message',
             priority: 5000,
+            task: {
+                name: 'MCTool服务器状态检查',
+                cron: '*/1 * * * *',
+                fnc: () => this.checkServerStatus()
+            },
             rule: [
                 {
                     reg: '^#[Mm][Cc](开启|关闭)推送$',
@@ -42,12 +47,6 @@ export class MCPush extends plugin {
                 }
             ]
         });
-
-        this.task = {
-            cron: '*/1 * * * *',
-            name: 'MCTool服务器状态检查',
-            fnc: () => this.checkServerStatus()
-        }
     }
 
     async checkServerStatus() {
