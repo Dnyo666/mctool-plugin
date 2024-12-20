@@ -1,7 +1,9 @@
-import { MCServer } from './apps/mc-server.js'
-import { MCAuth } from './apps/mc-auth.js'
-import { MCPush } from './apps/mc-push.js'
-import { MCAuthRequest } from './apps/mc-auth-request.js'
+import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 console.info('------------------------------------')
 console.info('MCTool-Plugin v1.0.0')
@@ -13,14 +15,33 @@ console.info('------------------------------------')
 
 const apps = {}
 
-try {
-    apps['mc-server'] = MCServer
-    apps['mc-auth'] = MCAuth
-    apps['mc-push'] = MCPush
-    apps['mc-auth-request'] = MCAuthRequest
-    console.info('[MCTool] 插件加载成功')
-} catch (err) {
-    console.error('[MCTool] 插件加载失败:', err)
+// 按顺序加载插件
+const pluginOrder = [
+    'mc-utils.js',      // 工具类
+    'mc-server.js',     // 服务器管理
+    'mc-auth.js',       // 验证功能
+    'mc-push.js',       // 推送功能
+    'mc-push-commands.js', // 推送命令
+    'mc-auth-request.js',  // 验证请求
+    'help.js'           // 帮助信息
+]
+
+for (const file of pluginOrder) {
+    try {
+        const mod = await import(`./apps/${file}`)
+        const name = file.replace('.js', '')
+        
+        // 获取导出的类（可能是默认导出或命名导出）
+        const exportedClass = mod.default || Object.values(mod)[0]
+        
+        if (exportedClass && typeof exportedClass === 'function') {
+            apps[name] = exportedClass
+            console.info(`[MCTool] 成功加载插件: ${name}`)
+        }
+    } catch (err) {
+        console.error(`[MCTool] 载入插件错误：${file}`)
+        console.error(err)
+    }
 }
 
 export { apps }
