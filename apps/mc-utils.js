@@ -369,100 +369,139 @@ export function comparePlayerLists(oldList = [], newList = []) {
     return { joined, left };
 }
 
-// 检查是否为新玩家
-export function isNewPlayer(player, historicalPlayers) {
-    return !historicalPlayers.includes(player);
-}
-
 // 更新历史玩家记录
 export function updateHistoricalPlayers(serverId, players) {
-    const historical = Data.read('historical');
-    if (!historical[serverId]) {
-        historical[serverId] = [];
+    try {
+        const historical = Data.read('historical') || {};
+        if (!historical[serverId]) {
+            historical[serverId] = {
+                players: [],
+                lastUpdate: 0
+            };
+        }
+        
+        // 过滤掉空值和无效值
+        const validPlayers = players.filter(player => 
+            player && typeof player === 'string' && player.trim().length > 0
+        );
+        
+        // 找出新玩家
+        const newPlayers = validPlayers.filter(player => 
+            !historical[serverId].players.includes(player)
+        );
+        
+        if (newPlayers.length > 0) {
+            // 添加新玩家到历史记录
+            historical[serverId].players.push(...newPlayers);
+            historical[serverId].lastUpdate = Date.now();
+            
+            // 保存更新后的历史记录
+            if (!Data.write('historical', historical)) {
+                throw new Error('保存历史玩家记录失败');
+            }
+            
+            logger.info(`[MCTool] 服务器 ${serverId} 新增 ${newPlayers.length} 个历史玩家记录`);
+        }
+        
+        return newPlayers;
+    } catch (error) {
+        logger.error(`[MCTool] 更新历史玩家记录失败:`, error);
+        return [];
     }
-    
-    const newPlayers = players.filter(player => !historical[serverId].includes(player));
-    if (newPlayers.length > 0) {
-        historical[serverId].push(...newPlayers);
-        Data.write('historical', historical);
+}
+
+// 检查是否为新玩家
+export function isNewPlayer(serverId, player) {
+    try {
+        const historical = Data.read('historical') || {};
+        return !historical[serverId]?.players?.includes(player);
+    } catch (error) {
+        logger.error(`[MCTool] 检查新玩家失败:`, error);
+        return false;
     }
-    
-    return newPlayers;
 }
 
 // 处理服务器状态变化
 export function handleServerStatusChange(serverId, oldStatus, newStatus) {
-    // 获取订阅了该服务器的群组
-    const subscriptions = Data.read('subscriptions');
-    const servers = Data.read('servers');
-    const serverName = servers[serverId]?.name || serverId;
-    
-    // 遍历所有群组
-    for (const [groupId, groupConfig] of Object.entries(subscriptions)) {
-        if (!groupConfig?.servers?.[serverId]?.enabled) continue;
+    try {
+        // 获取订阅了该服务器的群组
+        const subscriptions = Data.read('subscriptions');
+        const servers = Data.read('servers');
+        const serverName = servers[serverId]?.name || serverId;
         
-        // 检查服务器状态变化
-        if (oldStatus?.online !== newStatus?.online) {
-            const message = formatPushMessage(
-                newStatus.online ? 'online' : 'offline',
-                null,
-                serverName
-            );
-            Bot.pickGroup(groupId).sendMsg(message);
-        }
-        
-        // 如果服务器在线，检查玩家变化
-        if (newStatus?.online && newStatus?.players?.list) {
-            const oldPlayers = oldStatus?.players?.list || [];
-            const newPlayers = newStatus.players.list;
+        // 遍历所有群组
+        for (const [groupId, groupConfig] of Object.entries(subscriptions)) {
+            if (!groupConfig?.servers?.[serverId]?.enabled) continue;
             
-            const { joined, left } = comparePlayerLists(oldPlayers, newPlayers);
-            
-            // 处理新加入的玩家
-            for (const player of joined) {
-                // 检查是否为新玩家
-                const historical = Data.read('historical');
-                const isNew = !historical[serverId]?.includes(player);
-                
-                // 发送消息
+            // 检查服务器状态变化
+            if (oldStatus?.online !== newStatus?.online) {
                 const message = formatPushMessage(
-                    isNew ? 'new' : 'join',
-                    player,
+                    newStatus.online ? 'online' : 'offline',
+                    null,
                     serverName
                 );
                 Bot.pickGroup(groupId).sendMsg(message);
             }
             
-            // 处理离开的玩家
-            for (const player of left) {
-                const message = formatPushMessage('leave', player, serverName);
-                Bot.pickGroup(groupId).sendMsg(message);
+            // 如果服务器在线，检查玩家变化
+            if (newStatus?.online && newStatus?.players?.list) {
+                const oldPlayers = oldStatus?.players?.list || [];
+                const newPlayers = newStatus.players.list;
+                
+                const { joined, left } = comparePlayerLists(oldPlayers, newPlayers);
+                
+                // 处理新加入的玩家
+                for (const player of joined) {
+                    // 检查是否为新玩家
+                    const isNew = isNewPlayer(serverId, player);
+                    
+                    // 发送消息
+                    const message = formatPushMessage(
+                        isNew ? 'new' : 'join',
+                        player,
+                        serverName
+                    );
+                    Bot.pickGroup(groupId).sendMsg(message);
+                }
+                
+                // 处理离开的玩家
+                for (const player of left) {
+                    const message = formatPushMessage('leave', player, serverName);
+                    Bot.pickGroup(groupId).sendMsg(message);
+                }
+                
+                // 更新历史玩家记录
+                if (newPlayers.length > 0) {
+                    const newHistoricalPlayers = updateHistoricalPlayers(serverId, newPlayers);
+                    if (newHistoricalPlayers.length > 0) {
+                        logger.info(`[MCTool] 服务器 ${serverName} 新增历史玩家: ${newHistoricalPlayers.join(', ')}`);
+                    }
+                }
             }
-            
-            // 更新历史玩家记录
-            updateHistoricalPlayers(serverId, newPlayers);
         }
+        
+        // 更新当前状态
+        const current = Data.read('current');
+        current[serverId] = newStatus;
+        Data.write('current', current);
+        
+        // 记录变动
+        const changes = Data.read('changes');
+        if (!changes[serverId]) {
+            changes[serverId] = [];
+        }
+        changes[serverId].push({
+            time: Date.now(),
+            status: newStatus
+        });
+        // 只保留最近 100 条记录
+        if (changes[serverId].length > 100) {
+            changes[serverId] = changes[serverId].slice(-100);
+        }
+        Data.write('changes', changes);
+    } catch (error) {
+        logger.error(`[MCTool] 处理服务器状态变化失败:`, error);
     }
-    
-    // 更新当前状态
-    const current = Data.read('current');
-    current[serverId] = newStatus;
-    Data.write('current', current);
-    
-    // 记录变动
-    const changes = Data.read('changes');
-    if (!changes[serverId]) {
-        changes[serverId] = [];
-    }
-    changes[serverId].push({
-        time: Date.now(),
-        status: newStatus
-    });
-    // 只保留最近 100 条记录
-    if (changes[serverId].length > 100) {
-        changes[serverId] = changes[serverId].slice(-100);
-    }
-    Data.write('changes', changes);
 }
 
 // 常量配置
