@@ -1,7 +1,6 @@
 import plugin from '../../../lib/plugins/plugin.js';
 import { Data, checkGroupAdmin, queryServerStatus } from './mc-utils.js';
 import { handleServerStatusChange } from './mc-push.js';
-import schedule from 'node-schedule';
 
 export class MCPush extends plugin {
     constructor() {
@@ -44,13 +43,11 @@ export class MCPush extends plugin {
             ]
         });
 
-        this.startMonitoring();
-    }
-
-    startMonitoring() {
-        schedule.scheduleJob('*/1 * * * *', async () => {
-            await this.checkServerStatus();
-        });
+        this.task = {
+            cron: '*/1 * * * *',
+            name: 'MCTool服务器状态检查',
+            fnc: () => this.checkServerStatus()
+        }
     }
 
     async checkServerStatus() {
