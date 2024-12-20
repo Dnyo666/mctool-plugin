@@ -37,7 +37,9 @@ export const PATHS = {
 const DEFAULT_CONFIG = {
     checkInterval: 5,
     maxServers: 10,
-    apiTimeout: 10,
+    apiTimeout: 30,        // 增加默认超时时间到 30 秒
+    maxRetries: 3,         // 添加最大重试次数
+    retryDelay: 1000,      // 重试间隔（毫秒）
     pushFormat: {
         join: '玩家 {player} 加入了 {server} 服务器',
         leave: '玩家 {player} 离开了 {server} 服务器',
@@ -175,11 +177,18 @@ export async function checkGroupAdmin(e) {
     return true;
 }
 
+// 添加延时函数
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // 服务器状态查询
 export async function queryServerStatus(address) {
     try {
         const config = getConfig();
-        const timeout = (config.apiTimeout || 10) * 1000;
+        const timeout = (config.apiTimeout || 30) * 1000;  // 使用更长的超时时间
+        const maxRetries = config.maxRetries || 3;
+        const retryDelay = config.retryDelay || 1000;
 
         // 构建请求选项
         const options = {
@@ -193,130 +202,138 @@ export async function queryServerStatus(address) {
             options.agent = new HttpsProxyAgent(process.env.https_proxy);
         }
 
+        // 处理地址格式
+        let [host, port] = address.split(':');
+        port = port || '25565';  // 如果没有指定端口，使用默认端口
+
         // 获取配置的 API 和备用 API
         const apis = [];
         // 如果配置了自定义 API，优先使用
         if (config.customApi) {
-            apis.push(config.customApi.replace('{address}', encodeURIComponent(address)));
+            apis.push(config.customApi.replace('{address}', encodeURIComponent(`${host}:${port}`)));
         }
-        // 添加备用 API
+        // 添加备用 API，使用不同的地址格式
         apis.push(
-            `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(address)}`,
-            `https://api.mcsrvstat.us/3/${encodeURIComponent(address)}`
+            `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(host)}${port === '25565' ? '' : ':' + port}`,
+            `https://api.mcsrvstat.us/3/${encodeURIComponent(host)}${port === '25565' ? '' : ':' + port}`
         );
 
         let lastError = null;
         for (const api of apis) {
-            try {
-                // 使用 Promise.race 和超时控制
-                const fetchPromise = fetch(api, options);
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('Timeout')), timeout);
-                });
-
-                const response = await Promise.race([fetchPromise, timeoutPromise]);
-
-                if (!response.ok) {
-                    logger.warn(`[MCTool] API ${api} 返回状态码: ${response.status}`);
-                    continue;
-                }
-
-                const data = await response.json();
-                
-                // 处理不同 API 的返回格式
-                if (api.includes('mcstatus.io')) {
-                    // 确保数据存在
-                    if (!data.online) {
-                        return { online: false, players: null };
-                    }
-
-                    // 安全地获取玩家列表
-                    const playerList = data.players?.list?.filter(p => 
-                        p && p.name_raw && !p.name_raw.includes('§')
-                    ).map(p => p.name_clean) || [];
-                    
-                    // 安全地获取排队信息
-                    let queueInfo = '';
-                    const queueMatch = data.players?.list?.find(p => 
-                        p && p.name_raw && p.name_raw.includes('排队')
-                    );
-                    if (queueMatch) {
-                        queueInfo = `\n${queueMatch.name_clean}`;
+            // 为每个 API 添加重试机制
+            for (let retry = 0; retry < maxRetries; retry++) {
+                try {
+                    if (retry > 0) {
+                        logger.info(`[MCTool] 正在重试 API (${retry}/${maxRetries}): ${api}`);
+                        await sleep(retryDelay);  // 重试前等待
+                    } else {
+                        logger.info(`[MCTool] 正在查询 API: ${api}`);
                     }
                     
-                    return {
-                        online: true,
-                        players: {
-                            online: data.players?.online || 0,
-                            max: data.players?.max || 0,
-                            list: playerList
-                        },
-                        motd: (data.motd?.clean || '') + queueInfo,
-                        version: data.version?.name_clean || '',
-                        software: data.software || ''
-                    };
-                } else if (api.includes('mcsrvstat.us')) {
-                    // 确保数据存在
-                    if (!data.online) {
-                        return { online: false, players: null };
+                    // 使用 Promise.race 和超时控制
+                    const fetchPromise = fetch(api, options);
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error('Timeout')), timeout);
+                    });
+
+                    const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+                    if (!response.ok) {
+                        logger.warn(`[MCTool] API ${api} 返回状态码: ${response.status}`);
+                        continue;
                     }
 
-                    // 安全地获取排队信息
-                    let queueInfo = '';
-                    if (Array.isArray(data.info?.clean)) {
-                        const queueMatch = data.info.clean.find(line => 
-                            line && line.includes('排队')
+                    const data = await response.json();
+                    
+                    // 处理不同 API 的返回格式
+                    if (api.includes('mcstatus.io')) {
+                        // 确保数据存在
+                        if (!data.online) {
+                            continue;  // 如果这个 API 返回离线，尝试下一个重试或 API
+                        }
+
+                        // 安全地获取玩家列表
+                        const playerList = data.players?.list?.filter(p => 
+                            p && p.name_raw && !p.name_raw.includes('§')
+                        ).map(p => p.name_clean) || [];
+                        
+                        // 安全地获取排队信息
+                        let queueInfo = '';
+                        const queueMatch = data.players?.list?.find(p => 
+                            p && p.name_raw && p.name_raw.includes('排队')
                         );
                         if (queueMatch) {
-                            queueInfo = `\n${queueMatch}`;
+                            queueInfo = `\n${queueMatch.name_clean}`;
                         }
+                        
+                        return {
+                            online: true,
+                            players: {
+                                online: data.players?.online || 0,
+                                max: data.players?.max || 0,
+                                list: playerList
+                            },
+                            motd: (data.motd?.clean || '') + queueInfo,
+                            version: data.version?.name_clean || '',
+                            software: data.software || ''
+                        };
+                    } else if (api.includes('mcsrvstat.us')) {
+                        // 确保数据存在
+                        if (!data.online) {
+                            continue;  // 如果这个 API 返回离线，尝试下一个重试或 API
+                        }
+
+                        // 安全地获取排队信息
+                        let queueInfo = '';
+                        if (Array.isArray(data.info?.clean)) {
+                            const queueMatch = data.info.clean.find(line => 
+                                line && line.includes('排队')
+                            );
+                            if (queueMatch) {
+                                queueInfo = `\n${queueMatch}`;
+                            }
+                        }
+
+                        // 安全地处理 MOTD
+                        let motd = '';
+                        if (Array.isArray(data.motd?.clean)) {
+                            motd = data.motd.clean.filter(line => line).join('\n');
+                        } else if (data.motd?.clean) {
+                            motd = data.motd.clean;
+                        }
+                        
+                        return {
+                            online: true,
+                            players: {
+                                online: data.players?.online || 0,
+                                max: data.players?.max || 0,
+                                list: Array.isArray(data.players?.list) ? data.players.list : []
+                            },
+                            motd: motd + queueInfo,
+                            version: data.version || '',
+                            software: data.software || ''
+                        };
                     }
 
-                    // 安全地处理 MOTD
-                    let motd = '';
-                    if (Array.isArray(data.motd?.clean)) {
-                        motd = data.motd.clean.filter(line => line).join('\n');
-                    } else if (data.motd?.clean) {
-                        motd = data.motd.clean;
+                    // 如果成功获取数据，跳出重试循环
+                    break;
+                } catch (error) {
+                    lastError = error;
+                    if (error.message === 'Timeout') {
+                        logger.warn(`[MCTool] API ${api} 请求超时 (${retry + 1}/${maxRetries})`);
+                    } else {
+                        logger.error(`[MCTool] API ${api} 查询失败 (${retry + 1}/${maxRetries}):`, error.message);
                     }
                     
-                    return {
-                        online: true,
-                        players: {
-                            online: data.players?.online || 0,
-                            max: data.players?.max || 0,
-                            list: Array.isArray(data.players?.list) ? data.players.list : []
-                        },
-                        motd: motd + queueInfo,
-                        version: data.version || '',
-                        software: data.software || ''
-                    };
-                } else {
-                    // 处理自定义 API 的返回格式
-                    return {
-                        online: data.online || false,
-                        players: data.online ? {
-                            online: data.players?.online || 0,
-                            max: data.players?.max || 0,
-                            list: Array.isArray(data.players?.list) ? data.players.list : []
-                        } : null,
-                        motd: data.motd || '',
-                        version: data.version || '',
-                        software: data.software || ''
-                    };
+                    // 如果是最后一次重试，继续尝试下一个 API
+                    if (retry === maxRetries - 1) {
+                        continue;
+                    }
                 }
-            } catch (error) {
-                lastError = error;
-                if (error.message === 'Timeout') {
-                    logger.warn(`[MCTool] API ${api} 请求超时`);
-                } else {
-                    logger.error(`[MCTool] API ${api} 查询失败:`, error.message);
-                }
-                continue;
             }
         }
 
-        // 所有 API 都失败了
+        // 所有 API 和重试都失败了
         logger.error(`[MCTool] 所有 API 查询失败: ${lastError?.message || '未知错误'}`);
         return { online: false, players: null };
     } catch (error) {
@@ -357,7 +374,7 @@ export function isNewPlayer(player, historicalPlayers) {
     return !historicalPlayers.includes(player);
 }
 
-// 更新历��玩家记录
+// 更新历史玩家记录
 export function updateHistoricalPlayers(serverId, players) {
     const historical = Data.read('historical');
     if (!historical[serverId]) {
