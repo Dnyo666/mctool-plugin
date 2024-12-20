@@ -197,11 +197,17 @@ export async function queryServerStatus(address) {
             options.agent = new HttpsProxyAgent(process.env.https_proxy);
         }
 
-        // 尝试多个 API
-        const apis = [
+        // 获取配置的 API 和备用 API
+        const apis = [];
+        // 如果配置了自定义 API，优先使用
+        if (config.customApi) {
+            apis.push(config.customApi.replace('{address}', encodeURIComponent(address)));
+        }
+        // 添加备用 API
+        apis.push(
             `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(address)}`,
             `https://api.mcsrvstat.us/3/${encodeURIComponent(address)}`
-        ];
+        );
 
         let lastError = null;
         for (const api of apis) {
@@ -210,58 +216,91 @@ export async function queryServerStatus(address) {
                 clearTimeout(timeoutId);
 
                 if (!response.ok) {
+                    logger.warn(`[MCTool] API ${api} 返回状态码: ${response.status}`);
                     continue;
                 }
 
                 const data = await response.json();
                 
-                // 根据不同 API 格式化返回数据
+                // 处理不同 API 的返回格式
                 if (api.includes('mcstatus.io')) {
-                    // 过滤掉带有颜色代码的玩家名（通常是服务器状态信息）
-                    const playerList = data.players.list?.filter(p => !p.name_raw.includes('§'))
-                        .map(p => p.name_clean) || [];
+                    // 确保数据存在
+                    if (!data.online) {
+                        return { online: false, players: null };
+                    }
+
+                    // 安全地获取玩家列表
+                    const playerList = data.players?.list?.filter(p => 
+                        p && p.name_raw && !p.name_raw.includes('§')
+                    ).map(p => p.name_clean) || [];
                     
-                    // 从 MOTD 或玩家列表中提取排队信息
+                    // 安全地获取排队信息
                     let queueInfo = '';
-                    const queueMatch = data.players.list?.find(p => p.name_raw.includes('排队'));
+                    const queueMatch = data.players?.list?.find(p => 
+                        p && p.name_raw && p.name_raw.includes('排队')
+                    );
                     if (queueMatch) {
                         queueInfo = `\n${queueMatch.name_clean}`;
                     }
                     
                     return {
-                        online: data.online,
-                        players: data.online ? {
-                            online: data.players.online,
-                            max: data.players.max,
+                        online: true,
+                        players: {
+                            online: data.players?.online || 0,
+                            max: data.players?.max || 0,
                             list: playerList
-                        } : null,
+                        },
                         motd: (data.motd?.clean || '') + queueInfo,
                         version: data.version?.name_clean || '',
                         software: data.software || ''
                     };
                 } else if (api.includes('mcsrvstat.us')) {
-                    // 过滤掉信息性文本（通常在 info 字段中）
+                    // 确保数据存在
+                    if (!data.online) {
+                        return { online: false, players: null };
+                    }
+
+                    // 安全地获取排队信息
                     let queueInfo = '';
-                    if (data.info?.clean?.length > 0) {
-                        const queueMatch = data.info.clean.find(line => line.includes('排队'));
+                    if (Array.isArray(data.info?.clean)) {
+                        const queueMatch = data.info.clean.find(line => 
+                            line && line.includes('排队')
+                        );
                         if (queueMatch) {
                             queueInfo = `\n${queueMatch}`;
                         }
                     }
 
-                    // 合并并清理 MOTD
-                    const motd = Array.isArray(data.motd?.clean) ? 
-                        data.motd.clean.join('\n') : 
-                        (data.motd?.clean || '');
+                    // 安全地处理 MOTD
+                    let motd = '';
+                    if (Array.isArray(data.motd?.clean)) {
+                        motd = data.motd.clean.filter(line => line).join('\n');
+                    } else if (data.motd?.clean) {
+                        motd = data.motd.clean;
+                    }
                     
                     return {
-                        online: data.online,
+                        online: true,
+                        players: {
+                            online: data.players?.online || 0,
+                            max: data.players?.max || 0,
+                            list: Array.isArray(data.players?.list) ? data.players.list : []
+                        },
+                        motd: motd + queueInfo,
+                        version: data.version || '',
+                        software: data.software || ''
+                    };
+                } else {
+                    // 处理自定义 API 的返回格式
+                    // 这里需要根据实际的自定义 API 返回格式进行适配
+                    return {
+                        online: data.online || false,
                         players: data.online ? {
                             online: data.players?.online || 0,
                             max: data.players?.max || 0,
-                            list: data.players?.list || []
+                            list: Array.isArray(data.players?.list) ? data.players.list : []
                         } : null,
-                        motd: motd + queueInfo,
+                        motd: data.motd || '',
                         version: data.version || '',
                         software: data.software || ''
                     };
