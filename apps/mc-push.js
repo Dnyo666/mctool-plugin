@@ -1,6 +1,4 @@
 import { Data, getConfig } from './mc-utils.js';
-import pkg from 'icqq';
-const { Bot } = pkg;
 
 // 格式化推送消息
 export function formatPushMessage(type, data, server) {
@@ -41,7 +39,7 @@ export function handleServerStatusChange(serverId, oldStatus, newStatus) {
                     null,
                     serverName
                 );
-                Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
+                global.Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
                     console.error(`[MCTool] 发送服务器状态变化消息失败: ${err.message}`);
                 });
                 console.debug(`[MCTool] 服务器 ${serverName} ${newStatus.online ? '上线' : '离线'} 推送至群 ${groupId}`);
@@ -83,7 +81,7 @@ function handlePlayerChanges(serverId, serverName, groupId, oldStatus, newStatus
                 player,
                 serverName
             );
-            Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
+            global.Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
                 console.error(`[MCTool] 发送玩家加入消息失败: ${err.message}`);
             });
             console.debug(`[MCTool] 玩家 ${player} ${isNew ? '首次加入' : '加入'} ${serverName} 推送至群 ${groupId}`);
@@ -92,7 +90,7 @@ function handlePlayerChanges(serverId, serverName, groupId, oldStatus, newStatus
         // 处理离开的玩家
         for (const player of left) {
             const message = formatPushMessage('leave', player, serverName);
-            Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
+            global.Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
                 console.error(`[MCTool] 发送玩家离开消息失败: ${err.message}`);
             });
             console.debug(`[MCTool] 玩家 ${player} 离开 ${serverName} 推送至群 ${groupId}`);
