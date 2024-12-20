@@ -4,7 +4,8 @@
   "description": "Minecraft server management plugin for Yunzai-Bot",
   "type": "module",
   "imports": {
-    "#lib/*": "../../../lib/*",
+    "#lib": "./lib",
+    "#lib/*": "./lib/*",
     "#guoba": "../../../plugins/Guoba-Plugin/guoba.support.js"
   },
   "dependencies": {
