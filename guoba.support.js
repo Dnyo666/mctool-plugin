@@ -1,67 +1,39 @@
-import fs from 'fs'
-import lodash from 'lodash'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { Data, getConfig } from './apps/mc-utils.js'
 import YAML from 'yaml'
-import { logger } from '#lib'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
 
 const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const Config_File = join(__dirname, 'config', 'config.yaml')
+const __dirname = path.dirname(__filename)
 
-// 读取配置文件
-function getConfig() {
-    try {
-        const yaml = fs.readFileSync(Config_File, 'utf8')
-        return YAML.parse(yaml)
-    } catch (err) {
-        logger.error('[MCTool-Plugin] 读取配置文件失败:', err)
-        return {}
-    }
-}
-
-// 保存配置文件
-function saveConfig(config) {
-    try {
-        const yaml = YAML.stringify(config)
-        fs.writeFileSync(Config_File, yaml, 'utf8')
-        return true
-    } catch (err) {
-        logger.error('[MCTool-Plugin] 保存配置文件失败:', err)
-        return false
-    }
-}
-
+// 支持锅巴
 export function supportGuoba() {
     return {
-        // 插件信息，将会显示在前端页面
+        // 插件信息
         pluginInfo: {
-            name: 'MCTool-Plugin',
-            title: 'MC服务器管理',
+            name: 'mctool-plugin',
+            title: 'MC服务器列表管理',
             author: '@浅巷墨黎',
             authorLink: 'https://github.com/Dnyo666',
             link: 'https://github.com/Dnyo666/mctool-plugin',
             isV3: true,
             isV2: false,
-            description: 'Minecraft服务器管理插件，提供服务���状态监控、玩家动态推送等功能',
-            icon: 'mdi:minecraft',
-            iconColor: '#7CBA3B',
-            iconPath: ''
+            description: 'Minecraft服务器列表管理插件',
+            icon: 'minecraft:grass_block',
+            version: '1.0.0'
         },
+        
         // 配置项信息
         configInfo: {
             schemas: [
                 {
                     field: 'checkInterval',
                     label: '检查间隔',
-                    bottomHelpMessage: '服务器状态检查间隔（分钟）',
-                    component: 'InputNumber',
+                    bottomHelpMessage: '服务器状态检查间隔（cron表达式）',
+                    component: 'Input',
                     required: true,
-                    componentProps: {
-                        min: 1,
-                        max: 60,
-                        placeholder: '请输入检查间隔'
-                    }
+                    defaultValue: '*/1 * * * *'
                 },
                 {
                     field: 'maxServers',
@@ -69,139 +41,195 @@ export function supportGuoba() {
                     bottomHelpMessage: '每个群可添加的最大服务器数量',
                     component: 'InputNumber',
                     required: true,
-                    componentProps: {
-                        min: 1,
-                        max: 100,
-                        placeholder: '请输入最大服务器数'
-                    }
+                    defaultValue: 10
                 },
                 {
-                    field: 'apiTimeout',
-                    label: 'API超时',
-                    bottomHelpMessage: 'API请求超时时���（秒）',
-                    component: 'InputNumber',
-                    required: true,
+                    field: 'apis',
+                    label: 'API配置',
+                    bottomHelpMessage: '服务器状态查询API配置',
+                    component: 'GTags',
                     componentProps: {
-                        min: 1,
-                        max: 30,
-                        placeholder: '请输入超时时间'
+                        allowAdd: true,
+                        allowDel: true,
+                        showPrompt: true,
+                        promptProps: {
+                            title: '添加API',
+                            fields: [
+                                {
+                                    field: 'name',
+                                    label: 'API名称',
+                                    component: 'Input',
+                                    required: true
+                                },
+                                {
+                                    field: 'url',
+                                    label: 'API地址',
+                                    component: 'Input',
+                                    required: true
+                                },
+                                {
+                                    field: 'timeout',
+                                    label: '超时时间',
+                                    component: 'InputNumber',
+                                    required: true,
+                                    defaultValue: 30
+                                },
+                                {
+                                    field: 'maxRetries',
+                                    label: '最大重试次数',
+                                    component: 'InputNumber',
+                                    required: true,
+                                    defaultValue: 3
+                                },
+                                {
+                                    field: 'retryDelay',
+                                    label: '重试延迟',
+                                    component: 'InputNumber',
+                                    required: true,
+                                    defaultValue: 1000
+                                }
+                            ]
+                        }
                     }
                 },
                 {
                     field: 'pushFormat',
-                    label: '推送格式',
+                    label: '推送消息格式',
                     bottomHelpMessage: '推送消息格式配置',
-                    component: 'Group',
-                    components: [
-                        {
-                            field: 'join',
-                            label: '玩家上线',
-                            bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
-                            component: 'Input',
-                            required: true,
-                            componentProps: {
-                                placeholder: '请输入上线消息格式'
-                            }
-                        },
-                        {
-                            field: 'leave',
-                            label: '玩家下线',
-                            bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
-                            component: 'Input',
-                            required: true,
-                            componentProps: {
-                                placeholder: '请输入下线消息格式'
-                            }
-                        },
-                        {
-                            field: 'newPlayer',
-                            label: '新玩家提醒',
-                            bottomHelpMessage: '变量：{player}玩家名，{server}服务器名',
-                            component: 'Input',
-                            required: true,
-                            componentProps: {
-                                placeholder: '请输入新玩家提醒格式'
-                            }
-                        },
-                        {
-                            field: 'serverOnline',
-                            label: '服务器上线',
-                            bottomHelpMessage: '变量：{server}服务器名',
-                            component: 'Input',
-                            required: true,
-                            componentProps: {
-                                placeholder: '请输入服务器上线消息格式'
-                            }
-                        },
-                        {
-                            field: 'serverOffline',
-                            label: '服务器离线',
-                            bottomHelpMessage: '��量：{server}服务器名',
-                            component: 'Input',
-                            required: true,
-                            componentProps: {
-                                placeholder: '请输入服务器离线消息格式'
-                            }
+                    component: 'GTags',
+                    componentProps: {
+                        allowAdd: false,
+                        allowDel: false,
+                        showPrompt: true,
+                        promptProps: {
+                            title: '编辑消息格式',
+                            fields: [
+                                {
+                                    field: 'join',
+                                    label: '玩家加入',
+                                    component: 'Input',
+                                    required: true
+                                },
+                                {
+                                    field: 'leave',
+                                    label: '玩家离开',
+                                    component: 'Input',
+                                    required: true
+                                },
+                                {
+                                    field: 'newPlayer',
+                                    label: '新玩家加入',
+                                    component: 'Input',
+                                    required: true
+                                },
+                                {
+                                    field: 'serverOnline',
+                                    label: '服务器上线',
+                                    component: 'Input',
+                                    required: true
+                                },
+                                {
+                                    field: 'serverOffline',
+                                    label: '服务器离线',
+                                    component: 'Input',
+                                    required: true
+                                }
+                            ]
                         }
-                    ]
+                    }
                 },
                 {
-                    field: 'auth',
-                    label: '验证配置',
-                    bottomHelpMessage: '正版验证功能配置',
-                    component: 'Group',
-                    components: [
-                        {
-                            field: 'apiUrl',
-                            label: 'API地址',
-                            bottomHelpMessage: '验证服务器API地址',
-                            component: 'Input',
-                            required: true,
-                            componentProps: {
-                                placeholder: '请输入API地址'
-                            }
-                        },
-                        {
-                            field: 'requestTimeout',
-                            label: '请求超时',
-                            bottomHelpMessage: '验证请求超时时间（毫秒）',
-                            component: 'InputNumber',
-                            required: true,
-                            componentProps: {
-                                min: 1000,
-                                max: 30000,
-                                placeholder: '请输入超时时间'
-                            }
-                        },
-                        {
-                            field: 'maxUsernameLength',
-                            label: '用户名长度',
-                            bottomHelpMessage: 'MC用户名最大长度限制',
-                            component: 'InputNumber',
-                            required: true,
-                            componentProps: {
-                                min: 3,
-                                max: 26,
-                                placeholder: '请输入最大长度'
-                            }
-                        },
-                        {
-                            field: 'debug',
-                            label: '调试模式',
-                            bottomHelpMessage: '是否开启调试模式',
-                            component: 'Switch'
+                    field: 'defaultGroup',
+                    label: '默认群组配置',
+                    bottomHelpMessage: '新群组的默认配置',
+                    component: 'GTags',
+                    componentProps: {
+                        allowAdd: false,
+                        allowDel: false,
+                        showPrompt: true,
+                        promptProps: {
+                            title: '编辑默认配置',
+                            fields: [
+                                {
+                                    field: 'enabled',
+                                    label: '推送开关',
+                                    component: 'Switch',
+                                    defaultValue: false
+                                },
+                                {
+                                    field: 'serverStatusPush',
+                                    label: '状态推送',
+                                    component: 'Switch',
+                                    defaultValue: false
+                                },
+                                {
+                                    field: 'newPlayerAlert',
+                                    label: '新人提醒',
+                                    component: 'Switch',
+                                    defaultValue: false
+                                }
+                            ]
                         }
-                    ]
+                    }
+                },
+                {
+                    field: 'verification',
+                    label: '验证功能配置',
+                    bottomHelpMessage: '玩家验证功能配置',
+                    component: 'GTags',
+                    componentProps: {
+                        allowAdd: false,
+                        allowDel: false,
+                        showPrompt: true,
+                        promptProps: {
+                            title: '编辑验证配置',
+                            fields: [
+                                {
+                                    field: 'enabled',
+                                    label: '验证功能',
+                                    component: 'Switch',
+                                    defaultValue: false
+                                },
+                                {
+                                    field: 'expireTime',
+                                    label: '过期时间',
+                                    component: 'InputNumber',
+                                    required: true,
+                                    defaultValue: 86400
+                                },
+                                {
+                                    field: 'maxRequests',
+                                    label: '最大请求数',
+                                    component: 'InputNumber',
+                                    required: true,
+                                    defaultValue: 5
+                                }
+                            ]
+                        }
+                    }
                 }
             ],
+            
+            // 获取配置数据
             getConfigData() {
                 return getConfig()
             },
+            
+            // 设置配置数据
             setConfigData(data, { Result }) {
-                if (saveConfig(data)) {
+                const config = {}
+                for (const [key, value] of Object.entries(data)) {
+                    if (value !== undefined && value !== '') {
+                        config[key] = value
+                    }
+                }
+                
+                const configFile = path.join(__dirname, 'config', 'config.yaml')
+                try {
+                    fs.writeFileSync(configFile, YAML.stringify(config))
                     return Result.ok({}, '保存成功~')
-                } else {
-                    return Result.error('保存失败！')
+                } catch (err) {
+                    return Result.error('保存失败：' + err.message)
                 }
             }
         }
