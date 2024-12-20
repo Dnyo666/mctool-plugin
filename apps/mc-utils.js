@@ -3,7 +3,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import fetch from 'node-fetch'
 import HttpsProxyAgent from 'https-proxy-agent'
-import { logger } from '#lib'
 import YAML from 'yaml'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -14,6 +13,9 @@ const YUNZAI_DIR = path.join(__dirname, '..', '..', '..')  // Yunzai-Bot 根目�
 const PLUGIN_DIR = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin')  // 插件根目录
 const CONFIG_FILE = path.join(PLUGIN_DIR, 'config', 'config.yaml')  // 配置文件路径
 const DATA_DIR = path.join(PLUGIN_DIR, 'data')  // 数据目录路径
+
+// 导入Yunzai-Bot的logger
+const { logger } = await import('../../../lib/plugins/logger.js')
 
 // 配置管理
 let configCache = null
@@ -238,7 +240,7 @@ export async function queryServerStatus(address) {
             motd: data.motd || ''
         }
     } catch (error) {
-        logger.error('查询���务器状态失败:', error)
+        logger.error('查询服务器状态失败:', error)
         return {
             online: false,
             players: {
