@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import fetch from 'node-fetch'
 import HttpsProxyAgent from 'https-proxy-agent'
-import logger from '../../../lib/logger/logger.js'
+import { logger } from '#lib'
 import YAML from 'yaml'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -238,7 +238,7 @@ export async function queryServerStatus(address) {
             motd: data.motd || ''
         }
     } catch (error) {
-        logger.error('查询服务器状态失败:', error)
+        logger.error('查询���务器状态失败:', error)
         return {
             online: false,
             players: {

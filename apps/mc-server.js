@@ -1,7 +1,7 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import { Data, checkGroupAdmin, queryServerStatus, getConfig } from './mc-utils.js'
 import common from '../../../lib/common/common.js'
-import logger from '../models/logger.js'
+import { logger } from '#lib'
 
 export class MCServer extends plugin {
     constructor() {
@@ -107,7 +107,7 @@ export class MCServer extends plugin {
             e.reply(`已删除ID为 ${serverId} 的服务器`)
         } catch (error) {
             logger.error('删除服务器失败:', error)
-            e.reply('删除服务器失败���请稍后重试')
+            e.reply('删除服务器失败，请稍后重试')
         }
     }
 
