@@ -1,7 +1,6 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import { Data } from '../models/index.js'
 import { queryServerStatus } from '../models/mc-status.js'
-import schedule from 'node-schedule'
 
 export class MCPush extends plugin {
     constructor() {
@@ -10,6 +9,12 @@ export class MCPush extends plugin {
             dsc: 'Minecraft服务器推送服务',
             event: 'message',
             priority: 5000,
+            task: {
+                name: 'MCTool服务器状态检查',
+                fnc: () => this.checkServerStatus(),
+                cron: '*/1 * * * *',
+                log: false
+            },
             rule: [
                 {
                     reg: '^#[Mm][Cc](开启|关闭)推送$',
@@ -43,29 +48,48 @@ export class MCPush extends plugin {
                 }
             ]
         })
-
-        // 初始化定时任务
-        this.initTask()
     }
 
-    initTask() {
-        schedule.scheduleJob('*/1 * * * *', () => this.checkServerStatus())
+    async init() {
+        // 确保数据文件存在
+        const servers = Data.read('servers')
+        if (!servers || Object.keys(servers).length === 0) {
+            Data.write('servers', {})
+        }
+
+        const current = Data.read('current')
+        if (!current || Object.keys(current).length === 0) {
+            Data.write('current', {})
+        }
+
+        const subscriptions = Data.read('subscriptions')
+        if (!subscriptions || Object.keys(subscriptions).length === 0) {
+            Data.write('subscriptions', {})
+        }
     }
 
     async checkServerStatus() {
         try {
             const servers = Data.read('servers')
+            if (!servers || Object.keys(servers).length === 0) {
+                return
+            }
+
             const current = Data.read('current')
 
             // 遍历所有服务器
             for (const [serverId, serverConfig] of Object.entries(servers)) {
-                const oldStatus = current[serverId]
-                const newStatus = await queryServerStatus(serverConfig.address)
-                
-                // 处理状态变化
-                if (oldStatus?.online !== newStatus.online || 
-                    JSON.stringify(oldStatus?.players?.list) !== JSON.stringify(newStatus.players?.list)) {
-                    await this.handleServerStatusChange(serverId, oldStatus, newStatus)
+                try {
+                    const oldStatus = current[serverId]
+                    const newStatus = await queryServerStatus(serverConfig.address)
+                    
+                    // 处理状态变化
+                    if (oldStatus?.online !== newStatus.online || 
+                        JSON.stringify(oldStatus?.players?.list) !== JSON.stringify(newStatus.players?.list)) {
+                        await this.handleServerStatusChange(serverId, oldStatus, newStatus)
+                    }
+                } catch (error) {
+                    console.error(`[MCTool] 检查服务器 ${serverId} 状态失败:`, error)
                 }
             }
         } catch (error) {
@@ -74,54 +98,65 @@ export class MCPush extends plugin {
     }
 
     async handleServerStatusChange(serverId, oldStatus, newStatus) {
-        const pushConfig = Data.read('push_config')
-        if (!pushConfig || !pushConfig[serverId]) return
+        try {
+            const pushConfig = Data.read('push_config')
+            if (!pushConfig || !pushConfig[serverId]) return
 
-        const serverConfig = Data.read('servers')[serverId]
-        if (!serverConfig) return
+            const serverConfig = Data.read('servers')[serverId]
+            if (!serverConfig) return
 
-        for (const groupId of Object.keys(pushConfig[serverId])) {
-            const groupConfig = pushConfig[serverId][groupId]
-            
-            // 处理服务器状态变化
-            if (groupConfig.statusPush && oldStatus?.online !== newStatus.online) {
-                const msg = newStatus.online 
-                    ? `服务器 ${serverConfig.name} 已上线！\n版本: ${newStatus.version}\n${newStatus.description || ''}`
-                    : `服务器 ${serverConfig.name} 已离线！`
-                await this.sendGroupMsg(groupId, msg)
-            }
-
-            // 处理玩家列表变化
-            if (groupConfig.playerPush && newStatus.online) {
-                const oldPlayers = new Set(oldStatus?.players?.list || [])
-                const newPlayers = new Set(newStatus.players.list)
+            for (const groupId of Object.keys(pushConfig[serverId])) {
+                const groupConfig = pushConfig[serverId][groupId]
                 
-                // 检查新加入的玩家
-                for (const player of newPlayers) {
-                    if (!oldPlayers.has(player)) {
-                        await this.sendGroupMsg(groupId, 
-                            `玩家 ${player} 加入了服务器 ${serverConfig.name}`)
+                // 处理服务器状态变化
+                if (groupConfig.statusPush && oldStatus?.online !== newStatus.online) {
+                    const msg = newStatus.online 
+                        ? `服务器 ${serverConfig.name} 已上线！\n版本: ${newStatus.version}\n${newStatus.description || ''}`
+                        : `服务器 ${serverConfig.name} 已离线！`
+                    await this.sendGroupMsg(groupId, msg)
+                }
+
+                // 处理玩家列表变化
+                if (groupConfig.playerPush && newStatus.online) {
+                    const oldPlayers = new Set(oldStatus?.players?.list || [])
+                    const newPlayers = new Set(newStatus.players.list)
+                    
+                    // 检查新加入的玩家
+                    for (const player of newPlayers) {
+                        if (!oldPlayers.has(player)) {
+                            await this.sendGroupMsg(groupId, 
+                                `玩家 ${player} 加入了服务器 ${serverConfig.name}`)
+                        }
+                    }
+                    
+                    // 检查离开的玩家
+                    for (const player of oldPlayers) {
+                        if (!newPlayers.has(player)) {
+                            await this.sendGroupMsg(groupId,
+                                `玩家 ${player} 离开了服务器 ${serverConfig.name}`)
+                        }
                     }
                 }
-                
-                // 检查离开的玩家
-                for (const player of oldPlayers) {
-                    if (!newPlayers.has(player)) {
-                        await this.sendGroupMsg(groupId,
-                            `玩家 ${player} 离开了服务器 ${serverConfig.name}`)
-                    }
-                }
             }
+
+            // 更新当前状态
+            const current = Data.read('current')
+            current[serverId] = newStatus
+            Data.write('current', current)
+        } catch (error) {
+            console.error(`[MCTool] 处理服务器 ${serverId} 状态变化失败:`, error)
         }
-
-        // 更新当前状态
-        const current = Data.read('current')
-        current[serverId] = newStatus
-        Data.write('current', current)
     }
 
     async sendGroupMsg(groupId, msg) {
-        await Bot.pickGroup(groupId).sendMsg(msg)
+        try {
+            const group = Bot.pickGroup(groupId)
+            if (group) {
+                await group.sendMsg(msg)
+            }
+        } catch (error) {
+            console.error(`[MCTool] 发送群消息失败: ${error.message}`)
+        }
     }
 
     async togglePush(e) {
@@ -165,7 +200,7 @@ export class MCPush extends plugin {
                 return
             }
 
-            // 初始化群组配置
+            // 初始化��组配置
             if (!subscriptions[e.group_id]) {
                 subscriptions[e.group_id] = {
                     enabled: true,
@@ -240,7 +275,7 @@ export class MCPush extends plugin {
                 }
             }
 
-            // 更新新人推送设置
+            // 更新新人���送设置
             subscriptions[e.group_id].servers[serverId].newPlayerAlert = isEnable
             Data.write('subscriptions', subscriptions)
             

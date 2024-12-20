@@ -8,7 +8,9 @@ import { get } from './utils/request.js'
 export async function queryServerStatus(address) {
     try {
         const [host, port = '25565'] = address.split(':')
-        const response = await get(`https://api.mcstatus.io/v2/status/java/${host}:${port}`)
+        const response = await get(`https://api.mcstatus.io/v2/status/java/${host}:${port}`, {
+            timeout: 5000
+        })
         const data = response.data
 
         return {

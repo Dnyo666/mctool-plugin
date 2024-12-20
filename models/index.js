@@ -44,7 +44,9 @@ class DataManager {
     }
 }
 
-export const Data = new DataManager()
+const data = new DataManager()
+
+export { data as Data }
 
 export * as db from './db/index.js'
 export * as bind from './bind/index.js'
