@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { Config } from '#components'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
@@ -10,31 +9,22 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
  * @returns {Promise<AxiosResponse<any>>}
  */
 export default async function request (url, options = {}) {
-  const steamApi = (() => {
-    const url = 'https://api.steampowered.com'
-    if (Config.steam.commonProxy) {
-      return Config.steam.commonProxy.replace('{{url}}', url)
-    } else if (Config.steam.apiProxy) {
-      return Config.steam.apiProxy.replace(/\/$/, '')
-    } else {
-      return url
-    }
-  })()
+  const steamApi = 'https://api.steampowered.com'
   const baseURL = options.baseURL ?? steamApi
   return await axios.request({
     url,
     baseURL,
-    httpAgent: Config.steam.proxy ? new HttpProxyAgent(Config.steam.proxy) : undefined,
-    httpsAgent: Config.steam.proxy ? new HttpsProxyAgent(Config.steam.proxy) : undefined,
+    httpAgent: options.proxy ? new HttpProxyAgent(options.proxy) : undefined,
+    httpsAgent: options.proxy ? new HttpsProxyAgent(options.proxy) : undefined,
     ...options,
     params: {
-      key: baseURL === steamApi ? Config.steam.apiKey : undefined,
+      key: options.apiKey,
       l: 'schinese',
       cc: 'CN',
       language: 'schinese',
       ...options.params
     },
-    timeout: Config.steam.timeout * 1000
+    timeout: (options.timeout || 30) * 1000
   })
 }
 

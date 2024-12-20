@@ -170,7 +170,7 @@ export class MCAuthRequest extends plugin {
     handleError(e, error) {
         const errorMessage = error.name === 'AbortError' 
             ? '验证请求超时，请稍后重试'
-            : '验证过程中出现错误，请稍后重试';
+            : '验证过程中出现错误，���稍后重试';
             
         logger.error(`[MC正版验证] ${error.message}`);
         this.sendGroupMsg(e.group_id, errorMessage);
@@ -179,6 +179,6 @@ export class MCAuthRequest extends plugin {
     }
 
     sendGroupMsg(groupId, msg) {
-        Bot.pickGroup(groupId).sendMsg(msg);
+        global.Bot.pickGroup(groupId).sendMsg(msg);
     }
 } 

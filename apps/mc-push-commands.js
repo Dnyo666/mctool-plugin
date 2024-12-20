@@ -1,6 +1,6 @@
-import plugin from '../../../lib/plugins/plugin.js';
-import { Data, checkGroupAdmin, queryServerStatus } from './mc-utils.js';
-import { handleServerStatusChange } from './mc-push.js';
+import plugin from '../../../lib/plugins/plugin.js'
+import { Data } from '../models/index.js'
+import { queryServerStatus } from '../models/mc-status.js'
 
 export class MCPush extends plugin {
     constructor() {
@@ -62,7 +62,7 @@ export class MCPush extends plugin {
                 // 处理状态变化
                 if (oldStatus?.online !== newStatus.online || 
                     JSON.stringify(oldStatus?.players?.list) !== JSON.stringify(newStatus.players?.list)) {
-                    handleServerStatusChange(serverId, oldStatus, newStatus);
+                    await this.handleServerStatusChange(serverId, oldStatus, newStatus);
                 }
             }
         } catch (error) {
@@ -70,9 +70,58 @@ export class MCPush extends plugin {
         }
     }
 
-    async togglePush(e) {
-        if (!await checkGroupAdmin(e)) return;
+    async handleServerStatusChange(serverId, oldStatus, newStatus) {
+        const pushConfig = Data.read('push_config');
+        if (!pushConfig || !pushConfig[serverId]) return;
 
+        const serverConfig = Data.read('servers')[serverId];
+        if (!serverConfig) return;
+
+        for (const groupId of Object.keys(pushConfig[serverId])) {
+            const groupConfig = pushConfig[serverId][groupId];
+            
+            // 处理服务器状态变化
+            if (groupConfig.statusPush && oldStatus?.online !== newStatus.online) {
+                const msg = newStatus.online 
+                    ? `服务器 ${serverConfig.name} 已上线！\n版本: ${newStatus.version}\n${newStatus.description || ''}`
+                    : `服务器 ${serverConfig.name} 已离线！`;
+                await this.sendGroupMsg(groupId, msg);
+            }
+
+            // 处理玩家列表变化
+            if (groupConfig.playerPush && newStatus.online) {
+                const oldPlayers = new Set(oldStatus?.players?.list || []);
+                const newPlayers = new Set(newStatus.players.list);
+                
+                // 检查新加入的玩家
+                for (const player of newPlayers) {
+                    if (!oldPlayers.has(player)) {
+                        await this.sendGroupMsg(groupId, 
+                            `玩家 ${player} 加入了服务器 ${serverConfig.name}`);
+                    }
+                }
+                
+                // 检查离开的玩家
+                for (const player of oldPlayers) {
+                    if (!newPlayers.has(player)) {
+                        await this.sendGroupMsg(groupId,
+                            `玩家 ${player} 离开了服务器 ${serverConfig.name}`);
+                    }
+                }
+            }
+        }
+
+        // 更新当前状态
+        const current = Data.read('current');
+        current[serverId] = newStatus;
+        Data.write('current', current);
+    }
+
+    async sendGroupMsg(groupId, msg) {
+        await Bot.pickGroup(groupId).sendMsg(msg);
+    }
+
+    async togglePush(e) {
         try {
             const isEnable = e.msg.includes('开启');
             const subscriptions = Data.read('subscriptions');
@@ -96,8 +145,6 @@ export class MCPush extends plugin {
     }
 
     async configurePlayerPush(e) {
-        if (!await checkGroupAdmin(e)) return;
-
         try {
             const match = e.msg.match(/^#[Mm][Cc]推送玩家\s+(\S+)\s+(\S+)$/);
             if (!match) {
@@ -155,8 +202,6 @@ export class MCPush extends plugin {
     }
 
     async toggleNewPlayerAlert(e) {
-        if (!await checkGroupAdmin(e)) return;
-
         try {
             const match = e.msg.match(/^#[Mm][Cc](开启|关闭)新人推送\s+(\S+)$/);
             if (!match) {
@@ -198,14 +243,35 @@ export class MCPush extends plugin {
             
             e.reply(`已${isEnable ? '开启' : '关闭'}服务器 ${servers[serverId].name} 的新玩家提醒`);
         } catch (error) {
-            console.error('[MCTool] 操作新玩家提醒失败:', error);
+            console.error('[MCTool] 操作新玩家���醒失败:', error);
+            e.reply('操作失败，请稍后重试');
+        }
+    }
+
+    async toggleServerStatusPush(e) {
+        try {
+            const isEnable = e.msg.includes('开启');
+            const subscriptions = Data.read('subscriptions');
+            
+            if (!subscriptions[e.group_id]) {
+                subscriptions[e.group_id] = {
+                    enabled: true,
+                    servers: {}
+                };
+            }
+
+            // 更新状态推送设置
+            subscriptions[e.group_id].statusPush = isEnable;
+            Data.write('subscriptions', subscriptions);
+            
+            e.reply(`已${isEnable ? '开启' : '关闭'}服务器状态推送`);
+        } catch (error) {
+            console.error('[MCTool] 操作状态推送失败:', error);
             e.reply('操作失败，请稍后重试');
         }
     }
 
     async cancelPush(e) {
-        if (!await checkGroupAdmin(e)) return;
-
         try {
             const match = e.msg.match(/^#[Mm][Cc]取消推送\s+(\S+)\s+(\S+)$/);
             if (!match) {
@@ -256,55 +322,37 @@ export class MCPush extends plugin {
         try {
             const subscriptions = Data.read('subscriptions');
             const servers = Data.read('servers');
-
             const groupConfig = subscriptions[e.group_id];
-            if (!groupConfig || Object.keys(groupConfig.servers).length === 0) {
-                e.reply('当前群聊未配置任何推送');
+
+            if (!groupConfig || !groupConfig.enabled) {
+                e.reply('当前群组未开启推送功能');
                 return;
             }
 
-            const configList = [];
-            configList.push(`推送状态: ${groupConfig.enabled ? '已开启' : '已关闭'}`);
+            let msg = '当前推送配置：\n';
+            msg += `全局推送：${groupConfig.enabled ? '开启' : '关闭'}\n`;
+            msg += `状态推送：${groupConfig.statusPush ? '开启' : '关闭'}\n\n`;
 
-            for (const [serverId, serverConfig] of Object.entries(groupConfig.servers)) {
-                const server = servers[serverId];
-                if (!server) continue;
+            if (groupConfig.servers && Object.keys(groupConfig.servers).length > 0) {
+                msg += '服务器配置：\n';
+                for (const [serverId, serverConfig] of Object.entries(groupConfig.servers)) {
+                    const server = servers[serverId];
+                    if (!server) continue;
 
-                configList.push(`\n服务器: ${server.name}`);
-                configList.push(`- 新玩家提醒: ${serverConfig.newPlayerAlert ? '已开启' : '已关闭'}`);
-                configList.push(`- 推送玩家: ${serverConfig.players.includes('all') ? '所有玩家' : 
-                    serverConfig.players.length > 0 ? serverConfig.players.join(', ') : '无'}`);
+                    msg += `${server.name}：\n`;
+                    msg += `  新人提醒：${serverConfig.newPlayerAlert ? '开启' : '关闭'}\n`;
+                    msg += `  玩家列表：${serverConfig.players.length > 0 ? 
+                        (serverConfig.players[0] === 'all' ? '全部' : serverConfig.players.join(', ')) : 
+                        '无'}\n`;
+                }
+            } else {
+                msg += '暂无服务器配置';
             }
 
-            e.reply(configList.join('\n'));
+            e.reply(msg);
         } catch (error) {
             console.error('[MCTool] 获取推送配置失败:', error);
             e.reply('获取推送配置失败，请稍后重试');
-        }
-    }
-
-    async toggleServerStatusPush(e) {
-        if (!await checkGroupAdmin(e)) return;
-
-        try {
-            const isEnable = e.msg.includes('开启');
-            const subscriptions = Data.read('subscriptions');
-            
-            if (!subscriptions[e.group_id]) {
-                subscriptions[e.group_id] = {
-                    enabled: false,
-                    servers: {},
-                    serverStatusPush: false
-                };
-            }
-
-            subscriptions[e.group_id].serverStatusPush = isEnable;
-            Data.write('subscriptions', subscriptions);
-            
-            e.reply(`已${isEnable ? '开启' : '关闭'}服务器状态推送功能`);
-        } catch (error) {
-            console.error('[MCTool] 操作服务器状态推送功能失败:', error);
-            e.reply('操作失败，请稍后重试');
         }
     }
 } 
