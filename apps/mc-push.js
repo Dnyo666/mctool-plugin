@@ -1,6 +1,5 @@
 import { Data, getConfig } from './mc-utils.js';
 import { Bot } from 'icqq';
-import log from '../../../lib/plugins/lib/log.js';
 
 // 格式化推送消息
 export function formatPushMessage(type, data, server) {
@@ -42,9 +41,9 @@ export function handleServerStatusChange(serverId, oldStatus, newStatus) {
                     serverName
                 );
                 Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
-                    log.error(`[MCTool] 发送服务器状态变化消息失败: ${err.message}`);
+                    console.error(`[MCTool] 发送服务器状态变化消息失败: ${err.message}`);
                 });
-                log.debug(`[MCTool] 服务器 ${serverName} ${newStatus.online ? '上线' : '离线'} 推送至群 ${groupId}`);
+                console.debug(`[MCTool] 服务器 ${serverName} ${newStatus.online ? '上线' : '离线'} 推送至群 ${groupId}`);
             }
             
             // 如果服务器在线，检查玩家变化
@@ -59,7 +58,7 @@ export function handleServerStatusChange(serverId, oldStatus, newStatus) {
         Data.write('current', current);
         
     } catch (error) {
-        log.error(`[MCTool] 处理服务器状态变化失败:`, error);
+        console.error(`[MCTool] 处理服务器状态变化失败:`, error);
     }
 }
 
@@ -84,18 +83,18 @@ function handlePlayerChanges(serverId, serverName, groupId, oldStatus, newStatus
                 serverName
             );
             Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
-                log.error(`[MCTool] 发送玩家加入消息失败: ${err.message}`);
+                console.error(`[MCTool] 发送玩家加入消息失败: ${err.message}`);
             });
-            log.debug(`[MCTool] 玩家 ${player} ${isNew ? '首次加入' : '加入'} ${serverName} 推送至群 ${groupId}`);
+            console.debug(`[MCTool] 玩家 ${player} ${isNew ? '首次加入' : '加入'} ${serverName} 推送至群 ${groupId}`);
         }
         
         // 处理离开的玩家
         for (const player of left) {
             const message = formatPushMessage('leave', player, serverName);
             Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
-                log.error(`[MCTool] 发送玩家离开消息失败: ${err.message}`);
+                console.error(`[MCTool] 发送玩家离开消息失败: ${err.message}`);
             });
-            log.debug(`[MCTool] 玩家 ${player} 离开 ${serverName} 推送至群 ${groupId}`);
+            console.debug(`[MCTool] 玩家 ${player} 离开 ${serverName} 推送至群 ${groupId}`);
         }
         
         // 更新历史玩家记录
@@ -107,7 +106,7 @@ function handlePlayerChanges(serverId, serverName, groupId, oldStatus, newStatus
         updatePlayerChanges(serverId, joined, left);
         
     } catch (error) {
-        log.error(`[MCTool] 处理玩家变化失败:`, error);
+        console.error(`[MCTool] 处理玩家变化失败:`, error);
     }
 }
 
@@ -142,12 +141,12 @@ function updateHistoricalPlayers(serverId, players) {
                 throw new Error('保存历史玩家记录失败');
             }
             
-            log.debug(`[MCTool] 服务器 ${serverId} 新增历史玩家: ${newPlayers.join(', ')}`);
+            console.debug(`[MCTool] 服务器 ${serverId} 新增历史玩家: ${newPlayers.join(', ')}`);
         }
         
         return newPlayers;
     } catch (error) {
-        log.error(`[MCTool] 更新历史玩家记录失败:`, error);
+        console.error(`[MCTool] 更新历史玩家记录失败:`, error);
         return [];
     }
 }
@@ -167,6 +166,6 @@ function updatePlayerChanges(serverId, joined, left) {
         }
         Data.write('changes', changes);
     } catch (error) {
-        log.error(`[MCTool] 更新玩家变动记录失败:`, error);
+        console.error(`[MCTool] 更新玩家变动记录失败:`, error);
     }
 } 

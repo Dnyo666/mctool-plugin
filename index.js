@@ -1,19 +1,18 @@
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import log from '../../lib/plugins/lib/log.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 // 输出加载提示
-log.info('------------------------------------')
-log.info('MCTool-Plugin v1.0.0')
-log.info('插件正在加载中...')
-log.info('作者：浅巷墨黎')
-log.info('QQ群：303104111')
-log.info('项目地址：https://github.com/Dnyo666/mctool-plugin')
-log.info('------------------------------------')
+console.info('------------------------------------')
+console.info('MCTool-Plugin v1.0.0')
+console.info('插件正在加载中...')
+console.info('作者：浅巷墨黎')
+console.info('QQ群：303104111')
+console.info('项目地址：https://github.com/Dnyo666/mctool-plugin')
+console.info('------------------------------------')
 
 // 动态加载所有插件
 const files = fs.readdirSync(join(__dirname, 'apps'))
@@ -22,8 +21,8 @@ const files = fs.readdirSync(join(__dirname, 'apps'))
 let ret = []
 for (let file of files) {
     ret.push(import(`./apps/${file}`).catch(err => {
-        log.error(`载入插件错误：${file}`)
-        log.error(err)
+        console.error(`载入插件错误：${file}`)
+        console.error(err)
         return null
     }))
 }
@@ -34,8 +33,8 @@ let apps = {}
 for (let i in files) {
     let name = files[i].replace('.js', '')
     if (ret[i].status != 'fulfilled') {
-        log.error(`载入插件错误：${log.red(name)}`)
-        log.error(ret[i].reason)
+        console.error(`载入插件错误：${name}`)
+        console.error(ret[i].reason)
         continue
     }
     const mod = ret[i].value
@@ -49,5 +48,5 @@ for (let i in files) {
 
 export { apps }
 
-log.info('MCTool-Plugin 初始化完成')
-log.info('------------------------------------')
+console.info('MCTool-Plugin 初始化完成')
+console.info('------------------------------------')

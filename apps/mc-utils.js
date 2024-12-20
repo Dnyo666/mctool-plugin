@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import YAML from 'yaml';
 import HttpsProxyAgent from 'https-proxy-agent';
-import log from '../../../lib/plugins/lib/log.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,7 +42,7 @@ const DEFAULT_CONFIG = {
     retryDelay: 1000,      // 重试间隔（毫秒）
     pushFormat: {
         join: '玩家 {player} 加入了 {server} 服务器',
-        leave: '玩家 {player} 离开了 {server} 服务��',
+        leave: '玩家 {player} 离开了 {server} 服务',
         newPlayer: '欢迎新玩家 {player} 首次加入 {server} 服务器！',
         serverOnline: '{server} 服务器已上线',
         serverOffline: '{server} 服务器已离线'
@@ -69,7 +68,6 @@ export function getConfig(key) {
         const config = YAML.parse(fs.readFileSync(configFile, 'utf8'));
         return key ? config[key] : config;
     } catch (error) {
-        log.error('[MCTool] 读取配置文件失败:', error);
         return key ? DEFAULT_CONFIG[key] : DEFAULT_CONFIG;
     }
 }
@@ -82,12 +80,11 @@ export function saveConfig(config) {
         fs.writeFileSync(configFile, yaml, 'utf8');
         return true;
     } catch (error) {
-        log.error('[MCTool] 保存配置文件失败:', error);
         return false;
     }
 }
 
-// 初始化��据目录和文件
+// 初始化据目录和文件
 export function initDataFiles() {
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -110,7 +107,6 @@ export const Data = {
             }
             return JSON.parse(fs.readFileSync(PATHS[type], 'utf8'));
         } catch (error) {
-            log.error(`[MCTool] 读取${type}数据失败:`, error);
             return {};
         }
     },
@@ -123,7 +119,6 @@ export const Data = {
             fs.writeFileSync(PATHS[type], JSON.stringify(data, null, 2));
             return true;
         } catch (error) {
-            log.error(`[MCTool] 写入${type}数据失败:`, error);
             return false;
         }
     },
@@ -217,19 +212,15 @@ export async function queryServerStatus(address) {
 
         let lastError = null;
         for (const api of apis) {
-            log.debug(`[MCTool] 尝试查询服务器状态: ${address}`);
-            
             for (let retry = 0; retry < maxRetries; retry++) {
                 try {
                     if (retry > 0) {
                         await sleep(retryDelay);
-                        log.debug(`[MCTool] 重试查询 (${retry}/${maxRetries})`);
                     }
                     
                     const response = await fetch(api, options);
                     
                     if (!response.ok) {
-                        log.debug(`[MCTool] API返回态码: ${response.status}`);
                         continue;
                     }
 
@@ -297,9 +288,7 @@ export async function queryServerStatus(address) {
                 } catch (error) {
                     lastError = error;
                     if (error.name === 'AbortError' || error.message === 'Timeout') {
-                        log.debug(`[MCTool] API请求超时 (${retry + 1}/${maxRetries})`);
                     } else {
-                        log.debug(`[MCTool] API查询失败 (${retry + 1}/${maxRetries}): ${error.message}`);
                     }
                     
                     if (retry === maxRetries - 1) continue;
@@ -307,10 +296,8 @@ export async function queryServerStatus(address) {
             }
         }
 
-        log.warn(`[MCTool] 所有API查询失败: ${lastError?.message || '未知错误'}`);
         return { online: false, players: null };
     } catch (error) {
-        log.error(`[MCTool] 查询服务器状态失败: ${address}`, error);
         return { online: false, players: null };
     }
 }
