@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import YAML from 'yaml';
 import HttpsProxyAgent from 'https-proxy-agent';
+import { Bot } from '#lib';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,7 +124,7 @@ export const Data = {
         }
     },
 
-    // 获取群组的服务器配置
+    // 获取群���的服务器配置
     getGroupServerConfig(groupId, serverId) {
         const subscriptions = this.read('subscriptions');
         if (!subscriptions[groupId]?.servers?.[serverId]) {
