@@ -1,4 +1,4 @@
-import plugin from '../../../lib/plugins/plugin.js';
+import { plugin } from '#lib';
 import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles } from './mc-utils.js';
 import common from '../../../lib/common/common.js';
 

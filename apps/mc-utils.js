@@ -13,6 +13,7 @@ const YUNZAI_DIR = path.join(__dirname, '..', '..', '..');  // Yunzai-Bot 根目
 const PLUGIN_DIR = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin');  // 插件根目录
 const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目录（在 Yunzai 的 data 目录下）
 const CONFIG_DIR = path.join(PLUGIN_DIR, 'config');  // 配置目录（在插件目录下）
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');  // 配置文件路径
 
 // 确保目录存在
 function ensureDirectories() {
@@ -35,51 +36,22 @@ export const PATHS = {
     verified_users: path.join(DATA_DIR, 'verified_users.json')  // 已验证用户
 };
 
-// 默认配置
-const DEFAULT_CONFIG = {
-    checkInterval: 5,
-    maxServers: 10,
-    apiTimeout: 30,        // 增加默认超时时间到 30 秒
-    maxRetries: 3,         // 添加最大重试次数
-    retryDelay: 1000,      // 重试间隔（毫秒）
-    pushFormat: {
-        join: '玩家 {player} 加入了 {server} 服务器',
-        leave: '玩家 {player} 离开了 {server} 服务',
-        newPlayer: '欢迎新玩家 {player} 首次加入 {server} 服务器！',
-        serverOnline: '{server} 服务器已上线',
-        serverOffline: '{server} 服务器已离线'
-    },
-    auth: {
-        apiUrl: 'https://api.mojang.com',
-        requestTimeout: 5000,
-        maxUsernameLength: 16,
-        debug: false
-    }
-};
-
 // 获取配置
 export function getConfig(key) {
     try {
-        const configFile = path.join(CONFIG_DIR, 'config.yaml');
-        // 如果配置文件不存在，创建默认配置
-        if (!fs.existsSync(configFile)) {
-            fs.writeFileSync(configFile, YAML.stringify(DEFAULT_CONFIG), 'utf8');
-        }
-
-        // 读取配置
-        const config = YAML.parse(fs.readFileSync(configFile, 'utf8'));
+        const config = YAML.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
         return key ? config[key] : config;
     } catch (error) {
-        return key ? DEFAULT_CONFIG[key] : DEFAULT_CONFIG;
+        logger.error('[MCTool-Plugin] 读取配置文件失败:', error);
+        return key ? null : {};
     }
 }
 
 // 保存配置
 export function saveConfig(config) {
     try {
-        const configFile = path.join(CONFIG_DIR, 'config.yaml');
         const yaml = YAML.stringify(config);
-        fs.writeFileSync(configFile, yaml, 'utf8');
+        fs.writeFileSync(CONFIG_FILE, yaml, 'utf8');
         return true;
     } catch (error) {
         return false;
