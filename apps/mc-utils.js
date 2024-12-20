@@ -16,11 +16,13 @@ const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目�
 const CONFIG_DIR = path.join(PLUGIN_DIR, 'config');  // 配置目录（在插件目录下）
 
 // 确保目录存在
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+function ensureDirectories() {
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(CONFIG_DIR)) {
+        fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
 }
 
 // 数据文件路径
@@ -85,11 +87,9 @@ export function saveConfig(config) {
     }
 }
 
-// 初始化据目录和文件
+// 初始化数据目录和文件
 export function initDataFiles() {
-    if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
+    ensureDirectories();
 
     // 初始化所有数据文件
     for (const filePath of Object.values(PATHS)) {
@@ -124,7 +124,7 @@ export const Data = {
         }
     },
 
-    // 获取群���的服务器配置
+    // 获取群组的服务器配置
     getGroupServerConfig(groupId, serverId) {
         const subscriptions = this.read('subscriptions');
         if (!subscriptions[groupId]?.servers?.[serverId]) {
