@@ -1,4 +1,4 @@
-import plugin from '../../../lib/plugins/plugin.js';
+import { plugin } from '#lib';
 import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles } from './mc-utils.js';
 import common from '../../../lib/common/common.js';
 
@@ -170,7 +170,7 @@ export class MCServer extends plugin {
                 return;
             }
 
-            // 格式���服务器信息
+            // 格式化服务器信息
             const messages = onlineServers.map(server => {
                 const playerList = server.players.length > 0 ? 
                     server.players.join('\n') : 

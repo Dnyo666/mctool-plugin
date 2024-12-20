@@ -1,6 +1,7 @@
 import fs from 'fs'
 import lodash from 'lodash'
 import YAML from 'yaml'
+import { logger } from '#lib'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
@@ -42,7 +43,7 @@ export function supportGuoba() {
             link: 'https://github.com/Dnyo666/mctool-plugin',
             isV3: true,
             isV2: false,
-            description: 'Minecraft服务器管理插件，提供服务器状态监控、玩家动态推送等功能',
+            description: 'Minecraft服务器管理插件，提供服务���状态监控、玩家动态推送等功能',
             icon: 'mdi:minecraft',
             iconColor: '#7CBA3B',
             iconPath: ''
@@ -77,7 +78,7 @@ export function supportGuoba() {
                 {
                     field: 'apiTimeout',
                     label: 'API超时',
-                    bottomHelpMessage: 'API请求超时时间（秒）',
+                    bottomHelpMessage: 'API请求超时时���（秒）',
                     component: 'InputNumber',
                     required: true,
                     componentProps: {
@@ -135,7 +136,7 @@ export function supportGuoba() {
                         {
                             field: 'serverOffline',
                             label: '服务器离线',
-                            bottomHelpMessage: '变量：{server}服务器名',
+                            bottomHelpMessage: '��量：{server}服务器名',
                             component: 'Input',
                             required: true,
                             componentProps: {
