@@ -1,9 +1,9 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
 
 const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const __dirname = path.dirname(__filename)
 
 console.info('------------------------------------')
 console.info('MCTool-Plugin v1.0.0')
@@ -23,7 +23,7 @@ try {
     console.error('[MCTool] 工具模块加载失败:', err)
 }
 
-// 定义插件加载顺序
+// 按顺序加载插件
 const pluginOrder = [
     { name: 'mc-server', file: './apps/mc-server.js' },
     { name: 'mc-auth', file: './apps/mc-auth.js' },
@@ -32,27 +32,19 @@ const pluginOrder = [
     { name: 'help', file: './apps/help.js' }
 ]
 
-// 创建加载任务
-const loadTasks = pluginOrder.map(plugin => {
-    return new Promise(async (resolve) => {
-        try {
-            const mod = await import(plugin.file)
-            const exportedClass = Object.values(mod)[0]
-            if (exportedClass && typeof exportedClass === 'function') {
-                apps[plugin.name] = exportedClass
-                console.info(`[MCTool] 成功加载插件: ${plugin.name}`)
-            }
-            resolve()
-        } catch (err) {
-            console.error(`[MCTool] 载入插件错误：${plugin.name}`)
-            console.error(err)
-            resolve() // 即使失败也继续
+for (const plugin of pluginOrder) {
+    try {
+        const mod = await import(plugin.file)
+        const exportedClass = Object.values(mod)[0]
+        if (exportedClass && typeof exportedClass === 'function') {
+            apps[plugin.name] = exportedClass
+            console.info(`[MCTool] 成功加载插件: ${plugin.name}`)
         }
-    })
-})
-
-// 等待所有插件加载完成
-await Promise.all(loadTasks)
+    } catch (err) {
+        console.error(`[MCTool] 载入插件错误：${plugin.name}`)
+        console.error(err)
+    }
+}
 
 export { apps }
 

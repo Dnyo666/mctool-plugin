@@ -1,184 +1,187 @@
 import plugin from '../../../lib/plugins/plugin.js';
-import { Data } from './mc-utils.js';
-import fetch from 'node-fetch';
-
-// MC用户名格式验证正则
-const MC_USERNAME_REGEX = /^[A-Za-z0-9_]{3,26}$/i;
+import { Data, checkGroupAdmin } from './mc-utils.js';
 
 export class MCAuthRequest extends plugin {
     constructor() {
         super({
             name: 'MCTool-验证请求',
-            dsc: 'Minecraft正版用户验证入群请求处理',
-            event: 'request',
-            priority: 5000
+            dsc: 'Minecraft玩家验证请求处理',
+            event: 'message',
+            priority: 5000,
+            rule: [
+                {
+                    reg: '^#[Mm][Cc]验证请求\\s+\\S+$',
+                    fnc: 'requestVerification',
+                    permission: 'all'
+                },
+                {
+                    reg: '^#[Mm][Cc]验证通过\\s+\\S+$',
+                    fnc: 'approveVerification',
+                    permission: 'admin'
+                },
+                {
+                    reg: '^#[Mm][Cc]验证拒绝\\s+\\S+$',
+                    fnc: 'rejectVerification',
+                    permission: 'admin'
+                },
+                {
+                    reg: '^#[Mm][Cc]验证请求列表$',
+                    fnc: 'listVerificationRequests',
+                    permission: 'admin'
+                }
+            ]
         });
     }
 
-    /** 处理入群请求 */
-    async accept(e) {
-        // 只处理入群请求
-        if (e.sub_type !== 'add' || e.request_type !== 'group') {
-            return false;
-        }
-
-        logger.info(`[MC正版验证] 收到入群请求：${e.user_id} -> ${e.group_id}`);
-        logger.info(`[MC正版验证] 申请信息：${e.comment}`);
-
-        // 检查群是否开启验证
-        const config = Data.read('auth_config');
-        const groupConfig = config.groups?.[e.group_id];
-        if (!groupConfig?.enabled) {
-            logger.info(`[MC正版验证] 群${e.group_id}未开启验证，跳过处理`);
-            return false;
-        }
-
+    async requestVerification(e) {
         try {
-            // 验证用户名格式
-            const username = this.validateUsername(e.comment);
-            if (!username.valid) {
-                return this.handleInvalidUsername(e);
+            const match = e.msg.match(/^#[Mm][Cc]验证请求\s+(\S+)$/)
+            if (!match) {
+                e.reply('格式错误\n用法: #mc验证请求 <玩家名>')
+                return
             }
 
-            // 检查用户名是否已被使用
-            if (!groupConfig.allowReuse) {
-                const verifiedUsers = Data.read('verified_users');
-                const groupUsers = verifiedUsers[e.group_id] || [];
-                if (groupUsers.some(user => user.username.toLowerCase() === username.username.toLowerCase())) {
-                    return this.handleUsedUsername(e, username.username);
-                }
+            const [, playerName] = match
+            const verificationConfig = Data.read('verification')
+
+            // 检查群组是否开启验证
+            if (!verificationConfig[e.group_id]?.enabled) {
+                e.reply('当前群组未开启验证功能')
+                return
             }
 
-            // 验证正版用户
-            const userData = await this.verifyMinecraftUser(username.username);
-            return this.handleVerificationResult(e, userData, username.username);
-
-        } catch (error) {
-            return this.handleError(e, error);
-        }
-    }
-
-    validateUsername(comment) {
-        let username = comment?.trim() || '';
-        
-        // 添加调试日志
-        logger.info(`[MC正版验证] 原始输入: ${username}`);
-        
-        // 如果输入符合MC用户名格式，直接使用
-        if (MC_USERNAME_REGEX.test(username)) {
-            logger.info(`[MC正版验证] 用户名验证通过: ${username}`);
-            return { valid: true, username: username };
-        }
-        
-        // 否则尝试处理问题答案格式
-        const match = username.match(/问题：.*\n答案：(.+)$/);
-        if (match) {
-            username = match[1].trim();
-            if (MC_USERNAME_REGEX.test(username)) {
-                logger.info(`[MC正版验证] 从问答中提取的用户名验证通过: ${username}`);
-                return { valid: true, username: username };
+            // 检查玩家名是否已被验证
+            const verifiedPlayers = verificationConfig[e.group_id]?.players || {}
+            if (verifiedPlayers[playerName]) {
+                e.reply('该玩家名已被验证')
+                return
             }
-        }
-        
-        logger.info(`[MC正版验证] 用户名格式不符合要求: ${username}`);
-        return { valid: false, username: username };
-    }
 
-    async verifyMinecraftUser(username) {
-        const config = Data.read('auth_config');
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), config.requestTimeout || 5000);
-
-        try {
-            logger.info(`[MC正版验证] 正在验证用户名: ${username}`);
-            
-            const response = await fetch(
-                `https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(username)}`,
-                {
-                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                    signal: controller.signal
-                }
-            );
-
-            if (response.status === 200) {
-                const data = await response.json();
-                return { code: 200, username: data.name, uuid: data.id };
-            } else if (response.status === 404) {
-                return { code: 500, message: '找不到该正版用户' };
-            } else {
-                return { code: response.status, message: '验证服务异常' };
+            // 检查是否已有待处理的请求
+            const requests = Data.read('verification_requests')
+            if (!requests[e.group_id]) {
+                requests[e.group_id] = {}
             }
-        } finally {
-            clearTimeout(timeoutId);
-        }
-    }
 
-    handleInvalidUsername(e) {
-        const username = e.comment?.trim();
-        if (!username) {
-            this.sendGroupMsg(e.group_id, `请在申请信息中填写MC用户名`);
-            e.approve(false);
-        } else {
-            const match = username.match(/问题：.*\n答案：(.+)$/);
-            const mcUsername = match ? match[1].trim() : username;
-            this.sendGroupMsg(e.group_id, `用户名 ${mcUsername} 格式不正确，请使用正确的MC用户名`);
-            e.approve(false);
-        }
-        return true;
-    }
-
-    handleUsedUsername(e, username) {
-        const config = Data.read('auth_config');
-        const groupConfig = config.groups[e.group_id];
-
-        if (groupConfig.rejectDuplicate) {
-            // 自动拒绝模式
-            this.sendGroupMsg(e.group_id, `用户名 ${username} 已被使用，已自动拒绝入群申请`);
-            e.approve(false);
-        } else {
-            // 提醒管理员模式
-            this.sendGroupMsg(e.group_id, `⚠️ 注意：用户 ${e.user_id} 申请使用已存在的用户名 ${username} 加群，请管理员手动审核`);
-            return false; // 不处理，让管理员手动审核
-        }
-        return true;
-    }
-
-    handleVerificationResult(e, data, username) {
-        if (data.code === 200) {
-            // 添加验证记录
-            const verifiedUsers = Data.read('verified_users');
-            if (!verifiedUsers[e.group_id]) {
-                verifiedUsers[e.group_id] = [];
+            if (requests[e.group_id][playerName]) {
+                e.reply('该玩家名已有待处理的验证请求')
+                return
             }
-            verifiedUsers[e.group_id].push({
+
+            // 记录验证请求
+            requests[e.group_id][playerName] = {
                 qq: e.user_id,
-                username: username,
-                time: new Date().getTime()
-            });
-            Data.write('verified_users', verifiedUsers);
+                requestTime: Date.now()
+            }
+            Data.write('verification_requests', requests)
 
-            this.sendGroupMsg(e.group_id, 
-                `✅ 验证成功！\n用户名: ${data.username}\nUUID: ${data.uuid}`);
-            e.approve(true);
-        } else {
-            this.sendGroupMsg(e.group_id, `❌ 验证失败：${data.message}`);
-            e.approve(false);
+            e.reply(`已提交验证请求，请等待管理员审核\n玩家名: ${playerName}`)
+        } catch (error) {
+            console.error('[MCTool] 提交验证请求失败:', error)
+            e.reply('提交请求失败，请稍后重试')
         }
-        return true;
     }
 
-    handleError(e, error) {
-        const errorMessage = error.name === 'AbortError' 
-            ? '验证请求超时，请稍后重试'
-            : '验证过程中出现错误，���稍后重试';
-            
-        logger.error(`[MC正版验证] ${error.message}`);
-        this.sendGroupMsg(e.group_id, errorMessage);
-        e.approve(false);
-        return true;
+    async approveVerification(e) {
+        if (!await checkGroupAdmin(e)) return
+
+        try {
+            const match = e.msg.match(/^#[Mm][Cc]验证通过\s+(\S+)$/)
+            if (!match) {
+                e.reply('格式错误\n用法: #mc验证通过 <玩家名>')
+                return
+            }
+
+            const [, playerName] = match
+            const requests = Data.read('verification_requests')
+
+            // 检查是否存在该请求
+            if (!requests[e.group_id]?.[playerName]) {
+                e.reply('未找到该玩家的验证请求')
+                return
+            }
+
+            const request = requests[e.group_id][playerName]
+            const verificationConfig = Data.read('verification')
+
+            // 添加到已验证列表
+            if (!verificationConfig[e.group_id]) {
+                verificationConfig[e.group_id] = {
+                    enabled: true,
+                    players: {}
+                }
+            }
+
+            verificationConfig[e.group_id].players[playerName] = {
+                qq: request.qq,
+                verifyTime: Date.now()
+            }
+
+            // 删除请求
+            delete requests[e.group_id][playerName]
+
+            // 保存更改
+            Data.write('verification', verificationConfig)
+            Data.write('verification_requests', requests)
+
+            e.reply(`已通过 ${playerName} 的验证请求`)
+        } catch (error) {
+            console.error('[MCTool] 通过验证请求失败:', error)
+            e.reply('操作失败，请稍后重试')
+        }
     }
 
-    sendGroupMsg(groupId, msg) {
-        global.Bot.pickGroup(groupId).sendMsg(msg);
+    async rejectVerification(e) {
+        if (!await checkGroupAdmin(e)) return
+
+        try {
+            const match = e.msg.match(/^#[Mm][Cc]验证拒绝\s+(\S+)$/)
+            if (!match) {
+                e.reply('格式错误\n用法: #mc验证拒绝 <玩家名>')
+                return
+            }
+
+            const [, playerName] = match
+            const requests = Data.read('verification_requests')
+
+            // 检查是否存在该请求
+            if (!requests[e.group_id]?.[playerName]) {
+                e.reply('未找到该玩家的验证请求')
+                return
+            }
+
+            // 删除请求
+            delete requests[e.group_id][playerName]
+            Data.write('verification_requests', requests)
+
+            e.reply(`已拒绝 ${playerName} 的验证请求`)
+        } catch (error) {
+            console.error('[MCTool] 拒绝验证请求失败:', error)
+            e.reply('操作失败，请稍后重试')
+        }
+    }
+
+    async listVerificationRequests(e) {
+        if (!await checkGroupAdmin(e)) return
+
+        try {
+            const requests = Data.read('verification_requests')
+            const groupRequests = requests[e.group_id] || {}
+
+            if (Object.keys(groupRequests).length === 0) {
+                e.reply('当前没有待处理的验证请求')
+                return
+            }
+
+            let msg = '待处理的验证请求：\n'
+            for (const [playerName, request] of Object.entries(groupRequests)) {
+                msg += `\n玩家名：${playerName}\nQQ：${request.qq}\n申请时间：${new Date(request.requestTime).toLocaleString()}\n`
+            }
+
+            e.reply(msg)
+        } catch (error) {
+            console.error('[MCTool] 获取验证请求列表失败:', error)
+            e.reply('获取列表失败，请稍后重试')
+        }
     }
 } 

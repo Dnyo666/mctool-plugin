@@ -1,26 +1,70 @@
-# MCTool Plugin 配置文件
-
-# 服务器状态检查配置
-checkInterval: '*/1 * * * *'  # cron表达式，默认每分钟检查一次
+# 基础配置
+checkInterval: '*/1 * * * *'  # 服务器状态检查间隔（cron 表达式）
 maxServers: 10    # 每个群可添加的最大服务器数量
 
 # API 配置
-apiTimeout: 30  # API 超时时间（秒）
-maxRetries: 3   # 最大重试次数
-retryDelay: 1000  # 重试延迟（毫秒）
+apis:
+  - name: 'mcstatus'
+    url: 'https://api.mcstatus.io/v2/status/java/{host}:{port}'
+    timeout: 30
+    maxRetries: 3
+    retryDelay: 1000
+    parser:
+      online: 'online'
+      players:
+        online: 'players.online'
+        max: 'players.max'
+        list: 'players.list[].name_clean'
+      version: 'version.name_clean'
+      motd: 'motd.clean'
+
+  - name: 'mcsrvstat'
+    url: 'https://api.mcsrvstat.us/2/{host}:{port}'
+    timeout: 30
+    maxRetries: 2
+    retryDelay: 1000
+    parser:
+      online: 'online'
+      players:
+        online: 'players.online'
+        max: 'players.max'
+        list: 'players.list[]'
+      version: 'version'
+      motd: 'motd'
+
+  - name: 'mcapi'
+    url: 'https://mcapi.us/server/status?ip={host}&port={port}'
+    timeout: 30
+    maxRetries: 2
+    retryDelay: 1000
+    parser:
+      online: 'online'
+      players:
+        online: 'players.now'
+        max: 'players.max'
+        list: 'players.sample[].name'
+      version: 'server.name'
+      motd: 'motd'
 
 # 推送消息格式
 pushFormat:
-  join: "{player} 加入了服务器 {server}"
-  leave: "{player} 离开了服务器 {server}"
-  newPlayer: "新玩家 {player} 加入了服务器 {server}"
-  serverOnline: "服务器 {server} 已上线"
-  serverOffline: "服务器 {server} 已离线"
+  join: '{player} 加入了服务器 {server}'
+  leave: '{player} 离开了服务器 {server}'
+  newPlayer: '新玩家 {player} 加入了服务器 {server}'
+  serverOnline: '服务器 {server} 已上线'
+  serverOffline: '服务器 {server} 已离线'
 
-# 数据文件配置
-dataFiles:
-  - servers      # 服务器配置
-  - current      # 当前状态
-  - historical   # 历史记录
-  - changes      # 变动记录
-  - subscriptions  # 订阅配置
+# 数据存储配置
+dataPath: 'data/mctool'  # 相对于 Yunzai-Bot 根目录的路径
+
+# 默认群组配置
+defaultGroup:
+  enabled: false          # 默认推送开关
+  serverStatusPush: false # 默认服务器状态推送开关
+  newPlayerAlert: false   # 默认新玩家提醒开关
+
+# 验证功能配置
+verification:
+  enabled: false      # 默认验证功能开关
+  expireTime: 86400   # 验证请求过期时间（秒）
+  maxRequests: 5      # 每个群组最大待处理请求数

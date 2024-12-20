@@ -1,5 +1,5 @@
 import { Data, getConfig } from './mc-utils.js';
-import logger from '../../../lib/logger/logger.js';
+import logger from '../models/logger.js';
 
 // 格式化推送消息
 function formatPushMessage(type, data, server) {
@@ -27,7 +27,7 @@ function formatPushMessage(type, data, server) {
                 return '';
         }
     } catch (error) {
-        logger.error('[MCTool] 格式化推送消息失败:', error);
+        logger.error('格式化推送消息失败:', error);
         return `${type === 'online' ? '上线' : type === 'offline' ? '离线' : data} - ${server}`;
     }
 }
@@ -53,7 +53,7 @@ function handlePlayerChanges(serverId, serverName, groupId, oldStatus, newStatus
                 serverName
             );
             global.Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
-                logger.error(`[MCTool] 发送玩家加入消息失败: ${err.message}`);
+                logger.error(`发送玩家加入消息失败: ${err.message}`);
             });
         }
         
@@ -61,7 +61,7 @@ function handlePlayerChanges(serverId, serverName, groupId, oldStatus, newStatus
         for (const player of left) {
             const message = formatPushMessage('leave', player, serverName);
             global.Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
-                logger.error(`[MCTool] 发送玩家离开消息失败: ${err.message}`);
+                logger.error(`发送玩家离开消息失败: ${err.message}`);
             });
         }
         
@@ -73,7 +73,7 @@ function handlePlayerChanges(serverId, serverName, groupId, oldStatus, newStatus
         // 记录玩家变动
         updatePlayerChanges(serverId, joined, left);
     } catch (error) {
-        logger.error(`[MCTool] 处理玩家变化失败:`, error);
+        logger.error(`处理玩家变化失败:`, error);
     }
 }
 
@@ -102,7 +102,7 @@ function updateHistoricalPlayers(serverId, players) {
             Data.write('historical', historical);
         }
     } catch (error) {
-        logger.error(`[MCTool] 更新历史玩家记录失败:`, error);
+        logger.error(`更新历史玩家记录失败:`, error);
     }
 }
 
@@ -121,7 +121,7 @@ function updatePlayerChanges(serverId, joined, left) {
         }
         Data.write('changes', changes);
     } catch (error) {
-        logger.error(`[MCTool] 更新玩家变动记录失败:`, error);
+        logger.error(`更新玩家变动记录失败:`, error);
     }
 }
 
@@ -144,7 +144,7 @@ export async function handleServerStatusChange(serverId, oldStatus, newStatus) {
                     serverName
                 );
                 global.Bot.pickGroup(groupId)?.sendMsg(message).catch(err => {
-                    logger.error(`[MCTool] 发送服务器状态变化消息失败: ${err.message}`);
+                    logger.error(`发送服务器状态变化消息失败: ${err.message}`);
                 });
             }
             
@@ -159,6 +159,6 @@ export async function handleServerStatusChange(serverId, oldStatus, newStatus) {
         current[serverId] = newStatus;
         Data.write('current', current);
     } catch (error) {
-        logger.error(`[MCTool] 处理服务器状态变化失败:`, error);
+        logger.error(`处理服务器状态变化失败:`, error);
     }
 } 

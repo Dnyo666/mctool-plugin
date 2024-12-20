@@ -1,219 +1,152 @@
 import plugin from '../../../lib/plugins/plugin.js';
-import { Data, initDataFiles, checkGroupAdmin } from './mc-utils.js';
-import common from '../../../lib/common/common.js';
-
-// 默认群配置
-const DEFAULT_GROUP_CONFIG = {
-    enabled: false,         // 是否开启验证
-    allowReuse: false,      // 是否允许重复使用
-    rejectDuplicate: true   // 是否直接拒绝重复用户名
-};
+import { Data, checkGroupAdmin } from './mc-utils.js';
 
 export class MCAuth extends plugin {
     constructor() {
         super({
             name: 'MCTool-验证',
-            dsc: 'Minecraft正版用户验证',
-            event: 'message.group',
+            dsc: 'Minecraft玩家验证',
+            event: 'message',
             priority: 5000,
             rule: [
                 {
-                    reg: '^#[Mm][Cc]验证$',
-                    fnc: 'showAuthConfig'
+                    reg: '^#[Mm][Cc]验证\\s+\\S+$',
+                    fnc: 'verifyPlayer',
+                    permission: 'all'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证\\s*(开启|关闭)$',
-                    fnc: 'handleAuth',
+                    reg: '^#[Mm][Cc]验证开启$',
+                    fnc: 'enableVerification',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证\\s*(重复使用|拒绝)\\s*(开启|关闭)$',
-                    fnc: 'configureAuth',
+                    reg: '^#[Mm][Cc]验证关闭$',
+                    fnc: 'disableVerification',
                     permission: 'admin'
                 },
                 {
-                    reg: '^#[Mm][Cc]验证列表$',
-                    fnc: 'listVerifiedUsers'
-                },
-                {
-                    reg: '^#[Mm][Cc]验证删除\\s*\\d+$',
-                    fnc: 'removeVerifiedUser',
-                    permission: 'admin'
+                    reg: '^#[Mm][Cc]验证状态$',
+                    fnc: 'getVerificationStatus',
+                    permission: 'all'
                 }
             ]
         });
-
-        // 初始化数据目录和文件
-        initDataFiles();
-        this.initFiles();
     }
 
-    initFiles() {
-        // 初始化数据文件
-        const authConfig = Data.read('auth_config') || {};
-        if (!authConfig.groups) {
-            authConfig.groups = {};
+    async verifyPlayer(e) {
+        try {
+            const match = e.msg.match(/^#[Mm][Cc]验证\s+(\S+)$/);
+            if (!match) {
+                e.reply('格式错误\n用法: #mc验证 <玩家名>');
+                return;
+            }
+
+            const [, playerName] = match;
+            const verificationConfig = Data.read('verification');
+
+            // 检查群组是否开启验证
+            if (!verificationConfig[e.group_id]?.enabled) {
+                e.reply('当前群组未开启验证功能');
+                return;
+            }
+
+            // 检查玩家名是否已被验证
+            const verifiedPlayers = verificationConfig[e.group_id]?.players || {};
+            if (verifiedPlayers[playerName]) {
+                e.reply('该玩家名已被验证');
+                return;
+            }
+
+            // 记录验证信息
+            if (!verificationConfig[e.group_id].players) {
+                verificationConfig[e.group_id].players = {};
+            }
+            verificationConfig[e.group_id].players[playerName] = {
+                qq: e.user_id,
+                verifyTime: Date.now()
+            };
+            Data.write('verification', verificationConfig);
+
+            e.reply(`玩家 ${playerName} 验证成功`);
+        } catch (error) {
+            console.error('[MCTool] 验证玩家失败:', error);
+            e.reply('验证失败，请稍后重试');
         }
-        Data.write('auth_config', authConfig);
-
-        const verifiedUsers = Data.read('verified_users') || {};
-        Data.write('verified_users', verifiedUsers);
     }
 
-    async handleAuth(e) {
+    async enableVerification(e) {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const isEnable = e.msg.includes('开启');
-            const config = Data.read('auth_config');
+            const verificationConfig = Data.read('verification');
             
-            if (!config.groups[e.group_id]) {
-                config.groups[e.group_id] = { ...DEFAULT_GROUP_CONFIG };
+            if (!verificationConfig[e.group_id]) {
+                verificationConfig[e.group_id] = {
+                    enabled: false,
+                    players: {}
+                };
             }
 
-            config.groups[e.group_id].enabled = isEnable;
-            Data.write('auth_config', config);
-            
-            const tips = isEnable ? 
-                '验证功能已开启\n您可以通过以下命令进行更详细的设置：\n#mc验证重复使用 开启/关闭 - 是否允许重复用户名\n#mc验证拒绝 开启/关闭 - 是否自动拒绝重复用户名' :
-                '验证功能已关闭';
-            
-            e.reply(tips);
+            verificationConfig[e.group_id].enabled = true;
+            Data.write('verification', verificationConfig);
+
+            e.reply('已开启验证功能');
         } catch (error) {
-            logger.error('操作验证功能失败:', error);
+            console.error('[MCTool] 开启验证功能失败:', error);
             e.reply('操作失败，请稍后重试');
         }
     }
 
-    async configureAuth(e) {
+    async disableVerification(e) {
         if (!await checkGroupAdmin(e)) return;
 
         try {
-            const match = e.msg.match(/^#[Mm][Cc]验证\s*(重复使用|拒绝)\s*(开启|关闭)$/);
-            const [, option, value] = match;
-            const isEnable = value === '开启';
+            const verificationConfig = Data.read('verification');
             
-            const config = Data.read('auth_config');
-            if (!config.groups[e.group_id]) {
-                config.groups[e.group_id] = { ...DEFAULT_GROUP_CONFIG };
+            if (!verificationConfig[e.group_id]) {
+                verificationConfig[e.group_id] = {
+                    enabled: false,
+                    players: {}
+                };
             }
 
-            const groupConfig = config.groups[e.group_id];
-            
-            switch (option) {
-                case '重复使用':
-                    groupConfig.allowReuse = isEnable;
-                    if (isEnable) {
-                        groupConfig.rejectDuplicate = false;
-                    }
-                    break;
-                case '拒绝':
-                    groupConfig.rejectDuplicate = isEnable;
-                    if (isEnable) {
-                        groupConfig.allowReuse = false;
-                    }
-                    break;
-            }
+            verificationConfig[e.group_id].enabled = false;
+            Data.write('verification', verificationConfig);
 
-            Data.write('auth_config', config);
-
-            let tips = `已${value}${option}功能`;
-            if (option === '重复使用' && isEnable) {
-                tips += '\n注意：开启重复使用会自动关闭拒绝功能';
-            } else if (option === '拒绝' && isEnable) {
-                tips += '\n注意：开启拒绝会自动关闭重复使用功能';
-            }
-
-            e.reply(tips);
+            e.reply('已关闭验证功能');
         } catch (error) {
-            logger.error('配置验证功能失败:', error);
-            e.reply('配置失败，请稍后重试');
+            console.error('[MCTool] 关闭验证功能失败:', error);
+            e.reply('操作失败，请稍后重试');
         }
     }
 
-    async showAuthConfig(e) {
+    async getVerificationStatus(e) {
         try {
-            const config = Data.read('auth_config');
-            const groupConfig = config.groups[e.group_id] || { ...DEFAULT_GROUP_CONFIG };
+            const verificationConfig = Data.read('verification');
+            const groupConfig = verificationConfig[e.group_id];
 
-            const status = [
-                '当前验证功能配置：',
-                `验证状态：${groupConfig.enabled ? '已开启' : '已关闭'}`,
-                `允许重复使用：${groupConfig.allowReuse ? '是' : '否'}`,
-                `自动拒绝重复：${groupConfig.rejectDuplicate ? '是' : '否'}`,
-                '',
-                '可用命令：',
-                '#mc验证 开启/关闭 - 开启或关闭验证功能',
-                '#mc验证重复使用 开启/关闭 - 设置是否允许重复用户名',
-                '#mc验证拒绝 开启/关闭 - 设置是否自动拒绝重复用户名',
-                '#mc验证列表 - 查看已验证用户',
-                '#mc验证删除 <序号> - 删除指定验证记录'
-            ].join('\n');
-
-            e.reply(status);
-        } catch (error) {
-            logger.error('获取验证配置失败:', error);
-            e.reply('获取配置失败，请稍后重试');
-        }
-    }
-
-    async listVerifiedUsers(e) {
-        try {
-            const verifiedUsers = Data.read('verified_users');
-            const groupUsers = verifiedUsers[e.group_id] || [];
-
-            if (groupUsers.length === 0) {
-                e.reply('当前群没有已验证的用户');
+            if (!groupConfig) {
+                e.reply('当前群组未配置验证功能');
                 return;
             }
 
-            const userList = groupUsers.map((user, index) => 
-                `${index + 1}. QQ: ${user.qq}\n   用户名: ${user.username}`
-            );
+            let msg = `验证功能: ${groupConfig.enabled ? '已开启' : '已关闭'}\n`;
+            const players = groupConfig.players || {};
+            const playerCount = Object.keys(players).length;
 
-            if (userList.length >= 10) {
-                await this.sendForwardMsg(e, userList);
+            if (playerCount > 0) {
+                msg += `\n已验证玩家(${playerCount}个):\n`;
+                for (const [playerName, info] of Object.entries(players)) {
+                    msg += `${playerName} (QQ: ${info.qq})\n`;
+                }
             } else {
-                e.reply(['已验证用户列表：', ...userList].join('\n'));
-            }
-        } catch (error) {
-            logger.error('获取已验证用户列表失败:', error);
-            e.reply('获取列表失败，请稍后重试');
-        }
-    }
-
-    async removeVerifiedUser(e) {
-        if (!await checkGroupAdmin(e)) return;
-
-        try {
-            const index = parseInt(e.msg.match(/\d+/)[0]) - 1;
-            const verifiedUsers = Data.read('verified_users');
-            const groupUsers = verifiedUsers[e.group_id] || [];
-
-            if (index < 0 || index >= groupUsers.length) {
-                e.reply('无效的用户序号');
-                return;
+                msg += '\n暂无已验证玩家';
             }
 
-            const removedUser = groupUsers.splice(index, 1)[0];
-            verifiedUsers[e.group_id] = groupUsers;
-            Data.write('verified_users', verifiedUsers);
-
-            e.reply(`已移除验证用户：${removedUser.username} (QQ: ${removedUser.qq})`);
+            e.reply(msg);
         } catch (error) {
-            logger.error('移除验证用户失败:', error);
-            e.reply('操作失败，请稍后重试');
-        }
-    }
-
-    async sendForwardMsg(e, messages) {
-        try {
-            if (!messages.length) return;
-            const msg = await common.makeForwardMsg(e, messages, '已验证用户列表');
-            await e.reply(msg);
-        } catch (error) {
-            logger.error('发送转发消息失败:', error);
-            e.reply('发送消息失败，请稍后重试');
+            console.error('[MCTool] 获取验证状态失败:', error);
+            e.reply('获取状态失败，请稍后重试');
         }
     }
 } 
