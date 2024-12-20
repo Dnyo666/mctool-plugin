@@ -1,7 +1,7 @@
 import plugin from '../../../lib/plugins/plugin.js';
 import { Data, checkGroupAdmin, queryServerStatus, CONFIG, initDataFiles } from './mc-utils.js';
 import common from '../../../lib/common/common.js';
-import logger from '../../../lib/logger/logger.js';
+import log from '../../../lib/plugins/lib/log.js';
 
 export class MCServer extends plugin {
     constructor() {
@@ -75,7 +75,7 @@ export class MCServer extends plugin {
             
             e.reply(`服务器添加成功\n名称: ${name}\n地址: ${address}\n描述: ${description}`);
         } catch (error) {
-            logger.error('[MCTool] 添加服务器失败:', error);
+            log.error('[MCTool] 添加服务器失败:', error);
             e.reply('添加服务器失败，请稍后重试');
         }
     }
@@ -103,7 +103,7 @@ export class MCServer extends plugin {
             
             e.reply(`已删除ID为 ${serverId} 的服务器`);
         } catch (error) {
-            logger.error('[MCTool] 删除服务器失败:', error);
+            log.error('[MCTool] 删除服务器失败:', error);
             e.reply('删除服务器失败，请稍后重试');
         }
     }
@@ -135,7 +135,7 @@ export class MCServer extends plugin {
                 e.reply(statusList.join('\n\n'));
             }
         } catch (error) {
-            logger.error('[MCTool] 获取服务器状态失败:', error);
+            log.error('[MCTool] 获取服务器状态失败:', error);
             e.reply('获取服务器状态失败，请稍后重试');
         }
     }
@@ -189,7 +189,7 @@ export class MCServer extends plugin {
                 e.reply(messages.join('\n\n'));
             }
         } catch (error) {
-            logger.error('[MCTool] 获取在线玩家失败:', error);
+            log.error('[MCTool] 获取在线玩家失败:', error);
             e.reply('获取在线玩家失败，请稍后重试');
         }
     }
@@ -200,7 +200,7 @@ export class MCServer extends plugin {
             const msg = await common.makeForwardMsg(e, messages, '服务器状态信息');
             await e.reply(msg);
         } catch (error) {
-            logger.error('[MCTool] 发送转发消息失败:', error);
+            log.error('[MCTool] 发送转发消息失败:', error);
             e.reply('发送消息失败，请稍后重试');
         }
     }
