@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import YAML from 'yaml';
+import HttpsProxyAgent from 'https-proxy-agent';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -177,44 +178,234 @@ export async function checkGroupAdmin(e) {
 // 服务器状态查询
 export async function queryServerStatus(address) {
     try {
-        const timeout = getConfig('apiTimeout') * 1000;
+        const config = getConfig();
+        const timeout = (config.apiTimeout || 10) * 1000;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-        const response = await fetch(
-            `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(address)}`,
-            { signal: controller.signal }
-        );
-        clearTimeout(timeoutId);
-
-        const data = await response.json();
-        return {
-            online: data.online,
-            players: data.online ? {
-                online: data.players.online,
-                max: data.players.max,
-                list: data.players.list?.map(p => p.name_clean) || []
-            } : null
+        // 构建请求选项
+        const options = {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            timeout: timeout
         };
+
+        // 如果配置了代理，添加代理
+        if (process.env.https_proxy) {
+            options.agent = new HttpsProxyAgent(process.env.https_proxy);
+        }
+
+        // 尝试多个 API
+        const apis = [
+            `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(address)}`,
+            `https://api.mcsrvstat.us/3/${encodeURIComponent(address)}`
+        ];
+
+        let lastError = null;
+        for (const api of apis) {
+            try {
+                const response = await fetch(api, options);
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    continue;
+                }
+
+                const data = await response.json();
+                
+                // 根据不同 API 格式化返回数据
+                if (api.includes('mcstatus.io')) {
+                    // 过滤掉带有颜色代码的玩家名（通常是服务器状态信息）
+                    const playerList = data.players.list?.filter(p => !p.name_raw.includes('§'))
+                        .map(p => p.name_clean) || [];
+                    
+                    // 从 MOTD 或玩家列表中提取排队信息
+                    let queueInfo = '';
+                    const queueMatch = data.players.list?.find(p => p.name_raw.includes('排队'));
+                    if (queueMatch) {
+                        queueInfo = `\n${queueMatch.name_clean}`;
+                    }
+                    
+                    return {
+                        online: data.online,
+                        players: data.online ? {
+                            online: data.players.online,
+                            max: data.players.max,
+                            list: playerList
+                        } : null,
+                        motd: (data.motd?.clean || '') + queueInfo,
+                        version: data.version?.name_clean || '',
+                        software: data.software || ''
+                    };
+                } else if (api.includes('mcsrvstat.us')) {
+                    // 过滤掉信息性文本（通常在 info 字段中）
+                    let queueInfo = '';
+                    if (data.info?.clean?.length > 0) {
+                        const queueMatch = data.info.clean.find(line => line.includes('排队'));
+                        if (queueMatch) {
+                            queueInfo = `\n${queueMatch}`;
+                        }
+                    }
+
+                    // 合并并清理 MOTD
+                    const motd = Array.isArray(data.motd?.clean) ? 
+                        data.motd.clean.join('\n') : 
+                        (data.motd?.clean || '');
+                    
+                    return {
+                        online: data.online,
+                        players: data.online ? {
+                            online: data.players?.online || 0,
+                            max: data.players?.max || 0,
+                            list: data.players?.list || []
+                        } : null,
+                        motd: motd + queueInfo,
+                        version: data.version || '',
+                        software: data.software || ''
+                    };
+                }
+            } catch (error) {
+                lastError = error;
+                logger.error(`[MCTool] API ${api} 查询失败:`, error.message);
+                continue;
+            }
+        }
+
+        // 所有 API 都失败了
+        throw lastError || new Error('所有 API 查询失败');
     } catch (error) {
         if (error.name === 'AbortError') {
-            console.error(`查询服务器超时: ${address}`);
+            logger.error(`[MCTool] 查询服务器超时: ${address}`);
             return { online: false, players: null, timeout: true };
         }
-        console.error(`查询服务器状态失败: ${address}`, error);
+        logger.error(`[MCTool] 查询服务器状态失败: ${address}`, error);
         return { online: false, players: null };
     }
 }
 
 // 格式化推送消息
-export function formatPushMessage(player, action, server) {
+export function formatPushMessage(type, data, server) {
     const format = getConfig('pushFormat');
-    const template = action === 'join' ? format.join : 
-                    action === 'leave' ? format.leave : 
-                    format.newPlayer;
-    return template
-        .replace('{player}', player)
-        .replace('{server}', server);
+    
+    switch (type) {
+        case 'join':
+            return format.join.replace('{player}', data).replace('{server}', server);
+        case 'leave':
+            return format.leave.replace('{player}', data).replace('{server}', server);
+        case 'new':
+            return format.newPlayer.replace('{player}', data).replace('{server}', server);
+        case 'online':
+            return format.serverOnline.replace('{server}', server);
+        case 'offline':
+            return format.serverOffline.replace('{server}', server);
+        default:
+            return '';
+    }
+}
+
+// 比较玩家列表变化
+export function comparePlayerLists(oldList = [], newList = []) {
+    const joined = newList.filter(player => !oldList.includes(player));
+    const left = oldList.filter(player => !newList.includes(player));
+    return { joined, left };
+}
+
+// 检查是否为新玩家
+export function isNewPlayer(player, historicalPlayers) {
+    return !historicalPlayers.includes(player);
+}
+
+// 更新历史玩家记录
+export function updateHistoricalPlayers(serverId, players) {
+    const historical = Data.read('historical');
+    if (!historical[serverId]) {
+        historical[serverId] = [];
+    }
+    
+    const newPlayers = players.filter(player => !historical[serverId].includes(player));
+    if (newPlayers.length > 0) {
+        historical[serverId].push(...newPlayers);
+        Data.write('historical', historical);
+    }
+    
+    return newPlayers;
+}
+
+// 处理服务器状态变化
+export function handleServerStatusChange(serverId, oldStatus, newStatus) {
+    // 获取订阅了该服务器的群组
+    const subscriptions = Data.read('subscriptions');
+    const servers = Data.read('servers');
+    const serverName = servers[serverId]?.name || serverId;
+    
+    // 遍历所有群组
+    for (const [groupId, groupConfig] of Object.entries(subscriptions)) {
+        if (!groupConfig?.servers?.[serverId]?.enabled) continue;
+        
+        // 检查服务器状态变化
+        if (oldStatus?.online !== newStatus?.online) {
+            const message = formatPushMessage(
+                newStatus.online ? 'online' : 'offline',
+                null,
+                serverName
+            );
+            Bot.pickGroup(groupId).sendMsg(message);
+        }
+        
+        // 如果服务器在线，检查玩家变化
+        if (newStatus?.online && newStatus?.players?.list) {
+            const oldPlayers = oldStatus?.players?.list || [];
+            const newPlayers = newStatus.players.list;
+            
+            const { joined, left } = comparePlayerLists(oldPlayers, newPlayers);
+            
+            // 处理新加入的玩家
+            for (const player of joined) {
+                // 检查是否为新玩家
+                const historical = Data.read('historical');
+                const isNew = !historical[serverId]?.includes(player);
+                
+                // 发送消息
+                const message = formatPushMessage(
+                    isNew ? 'new' : 'join',
+                    player,
+                    serverName
+                );
+                Bot.pickGroup(groupId).sendMsg(message);
+            }
+            
+            // 处理离开的玩家
+            for (const player of left) {
+                const message = formatPushMessage('leave', player, serverName);
+                Bot.pickGroup(groupId).sendMsg(message);
+            }
+            
+            // 更新历史玩家记录
+            updateHistoricalPlayers(serverId, newPlayers);
+        }
+    }
+    
+    // 更新当前状态
+    const current = Data.read('current');
+    current[serverId] = newStatus;
+    Data.write('current', current);
+    
+    // 记录变动
+    const changes = Data.read('changes');
+    if (!changes[serverId]) {
+        changes[serverId] = [];
+    }
+    changes[serverId].push({
+        time: Date.now(),
+        status: newStatus
+    });
+    // 只保留最近 100 条记录
+    if (changes[serverId].length > 100) {
+        changes[serverId] = changes[serverId].slice(-100);
+    }
+    Data.write('changes', changes);
 }
 
 // 常量配置
@@ -225,12 +416,12 @@ export const CONFIG = {
     version: '1.0.0',
     /** 插件作者 */
     author: '浅巷墨黎',
-    /** 项目地址 */
+    /** 目地址 */
     github: 'https://github.com/Dnyo666/mctool-plugin',
     /** 交流群号 */
     qqGroup: '303104111',
     /** 插件名称 */
-    pluginName: 'MCTool',
+    pluginName: 'mctool-plugin',
     /** 插件描述 */
     pluginDesc: 'Minecraft服务器管理插件'
 }; 

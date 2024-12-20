@@ -12,7 +12,8 @@
     "node-fetch": "^3.3.2",
     "node-schedule": "^2.1.1",
     "axios": "^1.6.2",
-    "http-proxy-agent": "^7.0.0"
+    "https-proxy-agent": "^7.0.2",
+    "yaml": "^2.3.4"
   },
   "imports": {
     "#components": "./components/index.js",
