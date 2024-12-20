@@ -1,24 +1,26 @@
 # MCTool Plugin 配置文件
 
 # 服务器状态检查配置
-checkInterval: 5  # 检查间隔（分钟）
+checkInterval: '*/1 * * * *'  # cron表达式，默认每分钟检查一次
 maxServers: 10    # 每个群可添加的最大服务器数量
-apiTimeout: 10    # API请求超时时间（秒）
 
-# 推送消息格式配置
+# API 配置
+apiTimeout: 30  # API 超时时间（秒）
+maxRetries: 3   # 最大重试次数
+retryDelay: 1000  # 重试延迟（毫秒）
+
+# 推送消息格式
 pushFormat:
-  # 玩家动态推送
-  join: "玩家 {player} 加入了 {server} 服务器"
-  leave: "玩家 {player} 离开了 {server} 服务器"
-  newPlayer: "欢迎新玩家 {player} 首次加入 {server} 服务器！"
-  
-  # 服务器状态推送
-  serverOnline: "{server} 服务器已上线"
-  serverOffline: "{server} 服务器已离线"
+  join: "{player} 加入了服务器 {server}"
+  leave: "{player} 离开了服务器 {server}"
+  newPlayer: "新玩家 {player} 加入了服务器 {server}"
+  serverOnline: "服务器 {server} 已上线"
+  serverOffline: "服务器 {server} 已离线"
 
-# 验证功能配置
-auth:
-  apiUrl: "https://api.mojang.com"  # 验证服务器API地址
-  requestTimeout: 5000              # 验证请求超时时间（毫秒）
-  maxUsernameLength: 16            # MC用户名最大长度限制
-  debug: false                     # 是否开启调试模式 
+# 数据文件配置
+dataFiles:
+  - servers      # 服务器配置
+  - current      # 当前状态
+  - historical   # 历史记录
+  - changes      # 变动记录
+  - subscriptions  # 订阅配置
