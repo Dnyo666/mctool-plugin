@@ -13,6 +13,7 @@
     "node-schedule": "^2.1.1",
     "axios": "^1.6.2",
     "https-proxy-agent": "^7.0.2",
+    "http-proxy-agent": "^7.0.0",
     "yaml": "^2.3.4"
   },
   "imports": {

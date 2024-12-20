@@ -4,15 +4,15 @@ import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import YAML from 'yaml';
 import HttpsProxyAgent from 'https-proxy-agent';
-import { Version } from '#components';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 数据目录和文件路径
-const PLUGIN_DIR = Version.pluginPath;  // 插件根目录
-const DATA_DIR = path.join(PLUGIN_DIR, 'data');   // 数据存储目录
-const CONFIG_DIR = path.join(PLUGIN_DIR, 'config');  // 配置目录
+const YUNZAI_DIR = path.join(__dirname, '..', '..', '..');  // Yunzai-Bot 根目录
+const PLUGIN_DIR = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin');  // 插件根目录
+const DATA_DIR = path.join(YUNZAI_DIR, 'data', 'mctool');   // 数据存储目录（在 Yunzai 的 data 目录下）
+const CONFIG_DIR = path.join(PLUGIN_DIR, 'config');  // 配置目录（在插件目录下）
 
 // 确保目录存在
 if (!fs.existsSync(DATA_DIR)) {
@@ -90,7 +90,7 @@ export function initDataFiles() {
         fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
-    // 初始化所��数据文件
+    // 初始化所有数据文件
     for (const filePath of Object.values(PATHS)) {
         if (!fs.existsSync(filePath)) {
             fs.writeFileSync(filePath, '{}', 'utf8');
