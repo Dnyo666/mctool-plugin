@@ -1,22 +1,35 @@
 import { Data, getConfig } from './mc-utils.js';
 
+const defaultFormat = {
+    join: '{player} 加入了服务器 {server}',
+    leave: '{player} 离开了服务器 {server}',
+    newPlayer: '新玩家 {player} 加入了服务器 {server}',
+    serverOnline: '服务器 {server} 已上线',
+    serverOffline: '服务器 {server} 已离线'
+};
+
 // 格式化推送消息
 export function formatPushMessage(type, data, server) {
-    const format = getConfig('pushFormat');
-    
-    switch (type) {
-        case 'join':
-            return format.join.replace('{player}', data).replace('{server}', server);
-        case 'leave':
-            return format.leave.replace('{player}', data).replace('{server}', server);
-        case 'new':
-            return format.newPlayer.replace('{player}', data).replace('{server}', server);
-        case 'online':
-            return format.serverOnline.replace('{server}', server);
-        case 'offline':
-            return format.serverOffline.replace('{server}', server);
-        default:
-            return '';
+    try {
+        const format = getConfig('pushFormat') || defaultFormat;
+        
+        switch (type) {
+            case 'join':
+                return format.join.replace('{player}', data).replace('{server}', server);
+            case 'leave':
+                return format.leave.replace('{player}', data).replace('{server}', server);
+            case 'new':
+                return format.newPlayer.replace('{player}', data).replace('{server}', server);
+            case 'online':
+                return format.serverOnline.replace('{server}', server);
+            case 'offline':
+                return format.serverOffline.replace('{server}', server);
+            default:
+                return '';
+        }
+    } catch (error) {
+        console.error('[MCTool] 格式化推送消息失败:', error);
+        return `${type === 'online' ? '上线' : type === 'offline' ? '离线' : data} - ${server}`;
     }
 }
 

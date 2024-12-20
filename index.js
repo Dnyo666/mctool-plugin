@@ -15,34 +15,44 @@ console.info('------------------------------------')
 
 const apps = {}
 
-// 按顺序加载插件
+// 预加载工具模块
+try {
+    await import('./apps/mc-utils.js')
+    console.info('[MCTool] 工具模块加载完成')
+} catch (err) {
+    console.error('[MCTool] 工具模块加载失败:', err)
+}
+
+// 定义插件加载顺序
 const pluginOrder = [
-    'mc-utils.js',      // 工具类
-    'mc-server.js',     // 服务器管理
-    'mc-auth.js',       // 验证功能
-    'mc-push.js',       // 推送功能
-    'mc-push-commands.js', // 推送命令
-    'mc-auth-request.js',  // 验证请求
-    'help.js'           // 帮助信息
+    { name: 'mc-server', file: './apps/mc-server.js' },
+    { name: 'mc-auth', file: './apps/mc-auth.js' },
+    { name: 'mc-auth-request', file: './apps/mc-auth-request.js' },
+    { name: 'mc-push', file: './apps/mc-push-commands.js' },
+    { name: 'help', file: './apps/help.js' }
 ]
 
-for (const file of pluginOrder) {
-    try {
-        const mod = await import(`./apps/${file}`)
-        const name = file.replace('.js', '')
-        
-        // 获取导出的类（可能是默认导出或命名导出）
-        const exportedClass = mod.default || Object.values(mod)[0]
-        
-        if (exportedClass && typeof exportedClass === 'function') {
-            apps[name] = exportedClass
-            console.info(`[MCTool] 成功加载插件: ${name}`)
+// 创建加载任务
+const loadTasks = pluginOrder.map(plugin => {
+    return new Promise(async (resolve) => {
+        try {
+            const mod = await import(plugin.file)
+            const exportedClass = Object.values(mod)[0]
+            if (exportedClass && typeof exportedClass === 'function') {
+                apps[plugin.name] = exportedClass
+                console.info(`[MCTool] 成功加载插件: ${plugin.name}`)
+            }
+            resolve()
+        } catch (err) {
+            console.error(`[MCTool] 载入插件错误：${plugin.name}`)
+            console.error(err)
+            resolve() // 即使失败也继续
         }
-    } catch (err) {
-        console.error(`[MCTool] 载入插件错误：${file}`)
-        console.error(err)
-    }
-}
+    })
+})
+
+// 等待所有插件加载完成
+await Promise.all(loadTasks)
 
 export { apps }
 

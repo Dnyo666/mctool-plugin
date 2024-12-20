@@ -27,7 +27,7 @@ function ensureDirectories() {
 
 // 数据文件路径
 export const PATHS = {
-    servers: path.join(DATA_DIR, 'servers.json'),         // 群组��务器列表
+    servers: path.join(DATA_DIR, 'servers.json'),         // 群组务器列表
     current: path.join(DATA_DIR, 'currentPlayers.json'),  // 当前在线玩家
     changes: path.join(DATA_DIR, 'playerChanges.json'),   // 玩家变动记录
     subscriptions: path.join(DATA_DIR, 'groupSubscriptions.json'), // 群组推送订阅配置
@@ -36,14 +36,28 @@ export const PATHS = {
     verified_users: path.join(DATA_DIR, 'verified_users.json')  // 已验证用户
 };
 
+// 配置缓存
+let configCache = null
+
 // 获取配置
 export function getConfig(key) {
     try {
-        const config = YAML.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        return key ? config[key] : config;
+        if (!configCache) {
+            if (!fs.existsSync(CONFIG_FILE)) {
+                configCache = {}
+            } else {
+                try {
+                    configCache = YAML.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) || {}
+                } catch (error) {
+                    console.error('[MCTool] 读取配置文件失败:', error)
+                    configCache = {}
+                }
+            }
+        }
+        return key ? (configCache[key] || null) : configCache
     } catch (error) {
-        console.error('[MCTool-Plugin] 读取配置文件失败:', error);
-        return key ? null : {};
+        console.error('[MCTool] 获取配置失败:', error)
+        return key ? null : {}
     }
 }
 
