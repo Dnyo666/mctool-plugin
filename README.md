@@ -42,7 +42,17 @@
 git clone https://github.com/Dnyo666/mctool-plugin.git ./plugins/mctool-plugin/
 ```
 
-2. 重启 Yunzai-Bot 即可使用
+2. 进入插件目录
+```bash
+cd ./plugins/mctool-plugin
+```
+
+3. 在插件目录下执行
+```bash
+pnpm install
+```
+
+4. 重启 Yunzai-Bot 
 
 ## 使用说明
 
