@@ -2,34 +2,12 @@
 
 <img decoding="async" align=right src="resources/readme/background.png" width="35%">
 
-# MCTool-Plugin 🎮
+# MC工具箱插件🎮
 
-- 一个适用于 [Yunzai-Bot](https://github.com/Le-niao/Yunzai-Bot) 的 Minecraft 服务器管理插件
-- 提供服务器状态监控、玩家动态推送、新玩家提醒等功能
-- 支持多服务器管理、自定义推送设置等个性化配置
+基于 Yunzai-Bot v3 的 Minecraft 服务器管理插件，支持服务器状态查询、玩家绑定、进群验证等功能。
 
-## 安装教程
-
-1. 克隆项目
-```bash
-git clone https://github.com/Dnyo666/mctool-plugin.git ./plugins/mctool-plugin/
-```
-
-2. 进入插件目录
-```bash
-cd ./plugins/mctool-plugin/
-```
-
-3. 安装依赖
-```bash
-pnpm install
-```
-
-4. 重启云崽
 
 ## 功能介绍
-
-<details><summary>基础功能</summary>
 
 - [x] 服务器管理
   - 添加/删除服务器
@@ -41,7 +19,7 @@ pnpm install
   - 服务器状态推送
 - [x] 玩家动态
   - 玩家上下线推送
-  - 新玩���提醒
+  - 新玩家提醒
   - 自定义推送配置
 - [x] 推送服务
   - 群组独立配置
@@ -51,71 +29,136 @@ pnpm install
   - 入群验证
   - 分群配置
   - 验证记录管理
+- [x] 用户管理
+  - 绑定正版用户名
+  - 解绑正版用户名
+  - 查看已绑定正版用户名
 
-</details>
 
-## 使用指南
+## 安装方法
 
-<details><summary>常用命令</summary>
+1. 在 Yunzai-Bot 根目录下执行：
+```bash
+git clone https://github.com/Dnyo666/mctool-plugin.git ./plugins/mctool-plugin/
+```
 
-| 命令 | 说明 | 示例 |
-|------|------|------|
-| #mc帮助 | 查看帮助 | #mc帮助 |
-| #mc列表 | 查看服务器列表 | #mc列表 |
-| #mc在线 | 查看在线玩家 | #mc在线 |
-| #mc添加 | 添加服务器 | #mc添加 生存服 play.abc.com:25565 这是一个生存服 |
-| #mc删除 | 删除服务器 | #mc删除 1 |
-| #mc开启推送 | 开启推送 | #mc开启推送 |
-| #mc推送玩家 | 设置玩家推送 | #mc推送玩家 1 Steve |
-| #mc开启新人推送 | 开启指定服务器新人提醒 | #mc开启新人推送 1 |
-| #mc开启状态推送 | 开启服务器在线离线推送 | #mc开启状态推送 |
-| #mc开启验证 | 开启正版验证 | #mc开启验证 |
+2. 重启 Yunzai-Bot 即可使用
 
-注意：所有命令中的mc不区分大小写，如#MC、#Mc均可使用
+## 使用说明
 
-</details>
+### 基础指令
+- `#mc帮助` - 显示帮助信息
+- `#mc列表` - 查看服务器列表
+- `#mc在线` - 查看在线服务器及玩家列表
+- `#mc状态` - 查看服务器状态
+
+### 玩家相关
+- `#mc绑定 <玩家名>` - 绑定MC玩家名
+- `#mc信息` - 查看绑定信息
+- `#mc解绑 <玩家名>` - 解除指定玩家名的绑定
+
+### 管理指令
+- `#mc添加 <名称> <IP:端口> [描述]` - 添加服务器
+- `#mc删除 <ID>` - 删除指定服务器
+
+### 推送设置
+- `#mc推送` - 查看当前推送配置
+- `#mc开启推送 <ID>` - 开启指定服务器的推送
+- `#mc关闭推送 <ID>` - 关闭指定服务器的推送
+- `#mc开启状态推送 <ID>` - 开启服务器状态推送
+- `#mc关闭状态推送 <ID>` - 关闭服务器状态推送
+- `#mc推送玩家 <ID> <玩家名/all>` - 添加玩家推送
+- `#mc取消推送玩家 <ID> <玩家名/all>` - 取消玩家推送
+- `#mc开启新人推送 <ID>` - 开启新玩家提醒
+- `#mc关闭新人推送 <ID>` - 关闭新玩家提醒
+
+### 验证设置
+- `#mc验证` - 查看当前验证配置
+- `#mc验证开启` - 开启验证功能
+- `#mc验证关闭` - 关闭验证功能
+- `#mc验证重复使用开启` - 允许重复使用玩家名
+- `#mc验证重复使用关闭` - 禁止重复使用玩家名
+- `#mc验证拒绝开启` - 开启自动拒绝重复用户名
+- `#mc验证拒绝关闭` - 关闭自动拒绝重复用户名
+- `#mc验证列表` - 查看已验证用户
+- `#mc验证删除 <玩家名>` - 删除验证记录
+
+### 用户设置
+- `#mc绑定 用户名` - 绑定正版用户名
+- `#mc解绑 用户名` - 解绑正版用户名
+- `#mc信息` - 查看已绑定正版用户名
 
 ## 配置说明
 
-<details><summary>配置项说明</summary>
+配置文件位于 `plugins/mctool-plugin/config/config.yaml`，包含以下配置项：
 
-主要配置项:
-- 检查间隔: 服务器状态检查间隔
-- 最大服务器数: 单群组最大服务器数量
-- 推送格式: 自定义推送消息格式
-  - 玩家上线提醒
-  - 玩家下线提醒
-  - 新玩家提醒
-  - 服务器上线提醒
-  - 服务器离线提醒
-- API超时: API请求超时时间设置
-- 验证设置: 正版验证相关配置
-  - API地址: 验证服务器地址
-  - 请求超时: 验证请求超时时间
-  - 用户名长度: MC用户名最大长度限制
-  - 调试模式: 是否启用调试功能
+### API配置
+```yaml
+apis:
+  - name: mcsrvstat
+    url: https://api.mcsrvstat.us/3/{host}:{port}
+    timeout: 30
+    maxRetries: 3
+    retryDelay: 1000
+    parser:
+      online: online
+      players:
+        online: players.online
+        max: players.max
+        list: players.list[].name
+      version: version.name_clean
+      motd: motd.clean[]
 
-群组独立配置:
-- 验证功能: 每个群可独立配置
-  - 开启/关闭验证
-  - 允许/禁止重复用户名
-  - 自动/手动处理重复用户名
+  - name: mcstatus
+    url: https://api.mcstatus.io/v2/status/java/{host}:{port}
+    timeout: 30
+    maxRetries: 3
+    retryDelay: 1000
+    parser:
+      online: online
+      players:
+        online: players.online
+        max: players.max
+        list: players.list[].name_clean
+      version: version.name_clean
+      motd: motd.clean[]
+```
 
-配置文件位置: `plugins/mctool-plugin/config/mctool.yaml`
+### 定时任务配置
+```yaml
+schedule:
+  cron: "30 * * * * *"  # 每分钟的第30秒执行
+  startupNotify: true   # 是否在机器人启动时发送服务器状态推送
+  retryDelay: 5000      # 重试等待时间（毫秒）
+```
 
-</details>
+### 数据存储配置
+```yaml
+dataPath: data/mctool  # 数据存储路径
+```
 
-## 效果展示
+### 默认群组配置
+```yaml
+defaultGroup:
+  enabled: false        # 是否默认开启功能
+  serverStatusPush: false  # 是否默认开启服务器状态推送
+  newPlayerAlert: false    # 是否默认开启新玩家提醒
+```
 
-<details><summary>功能截图</summary>
+### 验证配置
+```yaml
+verification:
+  enabled: false        # 是否默认开启验证
+  expireTime: 86400     # 验证请求过期时间（秒）
+  maxRequests: 5        # 最大验证请求数
+```
 
-| 功能 | 效果图 |
-|------|--------|
-| 服务器列表 | ![服务器列表](resources/readme/servers.png) |
-| 在线玩家 | ![在线玩家](resources/readme/players.png) |
-| 推送效果 | ![推送效果](resources/readme/push.png) |
+## 注意事项
 
-</details>
+1. 服务器状态查询使用了 mcsrvstat 和 mcstatus 两个API，确保网络能够正常访问。
+2. 进群验证功能需要群管理员权限。
+3. 推送功能会定期检查服务器状态，请合理设置检查间隔。
+4. 玩家名绑定会通过 PlayerDB API 验证玩家名的有效性。
 
 ## 联系方式
 
@@ -135,4 +178,9 @@ pnpm install
 
 ## 许可证
 
-项目采用 [MIT](./LICENSE) 许可证
+项目采用 [GPL-3.0](./LICENSE) 许可证，这意味着：
+
+1. 您可以自由使用、修改和分发本软件
+2. 如果您分发修改后的版本，必须同样遵循 GPL-3.0 协议
+3. 您必须公开源代码
+4. 您必须保留原作者的版权声明

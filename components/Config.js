@@ -4,7 +4,7 @@ import { logger } from '#lib'
 import chokidar from 'chokidar'
 import Version from './Version.js'
 import YamlReader from './YamlReader.js'
-import { task } from '#models'
+import { task } from '../models/index.js'
 
 class Config {
   constructor () {
@@ -154,7 +154,7 @@ class Config {
 
   /**
    * 获取配置yaml
-   * @param type 默认跑配置-defSet，用户配置-config
+   * @param type ��认跑配置-defSet，用户配置-config
    * @param name 名称
    */
   getYaml (type, name) {

@@ -4,15 +4,16 @@
   "description": "Minecraft server management plugin for Yunzai-Bot",
   "type": "module",
   "imports": {
-    "#lib": "./lib/index.js",
-    "#lib/*": "./lib/*.js",
+    "#lib/*": "../../../lib/*",
+    "#guoba": "../../../plugins/Guoba-Plugin/guoba.support.js",
     "#components": "./components/index.js",
-    "#components/*": "./components/*.js",
-    "#guoba": "../../../plugins/Guoba-Plugin/guoba.support.js"
+    "#models": "./models/index.js",
+    "#utils": "./utils/index.js"
   },
   "dependencies": {
     "node-fetch": "^3.3.2",
     "yaml": "^2.3.4",
-    "https-proxy-agent": "^7.0.2"
+    "https-proxy-agent": "^7.0.2",
+    "node-schedule": "^2.1.1"
   }
 }

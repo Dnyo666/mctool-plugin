@@ -17,116 +17,113 @@ const CONFIG_FILE = path.join(PLUGIN_DIR, 'config', 'config.yaml')  // 配置文
 // 配置管理
 let configCache = null
 
-export function getConfig(key) {
+/**
+ * 获取配置
+ * @returns {object} 配置对象
+ */
+export function getConfig() {
     try {
-        if (!configCache) {
-            if (!fs.existsSync(CONFIG_FILE)) {
-                // 如果配置文件不存在，创建默认配置
-                const defaultConfig = {
-                    // 基础配置
-                    checkInterval: '*/1 * * * *',
-                    maxServers: 10,
-
-                    // API 配置
-                    apis: [
-                        {
-                            name: 'mcstatus.io',
-                            url: 'https://api.mcstatus.io/v2/status/java/{host}:{port}',
-                            timeout: 30,
-                            maxRetries: 3,
-                            retryDelay: 1000,
-                            parser: {
-                                online: 'online',
-                                players: {
-                                    online: 'players.online',
-                                    max: 'players.max',
-                                    list: 'players.list'
-                                },
-                                version: 'version.name_clean',
-                                motd: 'motd.clean'
-                            }
-                        },
-                        {
-                            name: 'mcsrvstat.us',
-                            url: 'https://api.mcsrvstat.us/2/{host}:{port}',
-                            timeout: 30,
-                            maxRetries: 2,
-                            retryDelay: 1000,
-                            parser: {
-                                online: 'online',
-                                players: {
-                                    online: 'players.online',
-                                    max: 'players.max',
-                                    list: 'players.list'
-                                },
-                                version: 'version',
-                                motd: 'motd'
-                            }
-                        }
-                    ],
-
-                    // 推送消息格式
-                    pushFormat: {
-                        join: '{player} 加入了服务器 {server}',
-                        leave: '{player} 离开了服务器 {server}',
-                        newPlayer: '新玩家 {player} 加入了服务器 {server}',
-                        serverOnline: '服务器 {server} 已上线',
-                        serverOffline: '服务器 {server} 已离线'
-                    },
-
-                    // 数据存储配置
-                    dataPath: 'data/mctool',
-
-                    // 默认群组配置
-                    defaultGroup: {
-                        enabled: false,
-                        serverStatusPush: false,
-                        newPlayerAlert: false
-                    },
-
-                    // 验证功能配置
-                    verification: {
-                        enabled: false,
-                        expireTime: 86400,
-                        maxRequests: 5
-                    }
-                }
-                fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true })
-                fs.writeFileSync(CONFIG_FILE, YAML.stringify(defaultConfig), 'utf8')
-                configCache = defaultConfig
-            } else {
-                configCache = YAML.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) || {}
-            }
+        const configPath = path.join(PLUGIN_DIR, 'config', 'config.yaml');
+        const config = YAML.parse(fs.readFileSync(configPath, 'utf8'));
+        
+        // 确保 apis 是数组
+        if (!Array.isArray(config.apis)) {
+            config.apis = [];
         }
 
-        if (key) {
-            const keys = key.split('.')
-            let value = configCache
-            for (const k of keys) {
-                if (value === undefined || value === null) return null
-                value = value[k]
-            }
-            return value
+        // 设置默认值
+        config.schedule = config.schedule || {
+            cron: '30 * * * * *',  // 默认每分钟的第30秒执行
+            retryDelay: 5000       // 默认重试等待时间5秒
+        };
+        config.schedule.startupNotify = config.schedule.startupNotify ?? true; // 默认为 true
+        config.dataPath = config.dataPath || 'data/mctool';
+        config.defaultGroup = config.defaultGroup || {
+            enabled: false,
+            serverStatusPush: false,
+            newPlayerAlert: false
+        };
+        config.verification = config.verification || {
+            enabled: false,
+            expireTime: 86400,
+            maxRequests: 5
+        };
+        
+        // 验证配置有效性
+        if (!config.schedule.cron) {
+            logger.warn('[MCTool] 未配置定时任务cron表达式，使用默认值: 30 * * * * *');
+            config.schedule.cron = '30 * * * * *';
         }
-        return configCache
+        if (!config.schedule.retryDelay || config.schedule.retryDelay < 1000) {
+            logger.warn('[MCTool] 重试等待时间配置无效，使用默认值: 5000ms');
+            config.schedule.retryDelay = 5000;
+        }
+        if (!config.apis.length) {
+            logger.warn('[MCTool] 未配置API，请检查配置文件');
+        }
+
+        return config;
     } catch (error) {
-        logger.error('获取配置失败:', error)
-        return key ? null : {}
+        logger.error('[MCTool] 读取配置文件失败:', error);
+        // 返回默认配置
+        return {
+            apis: [],  // 确保返回空数组而不是 undefined
+            schedule: {
+                cron: '30 * * * * *',
+                startupNotify: true,
+                retryDelay: 5000
+            },
+            dataPath: 'data/mctool',
+            defaultGroup: {
+                enabled: false,
+                serverStatusPush: false,
+                newPlayerAlert: false
+            },
+            verification: {
+                enabled: false,
+                expireTime: 86400,
+                maxRequests: 5
+            }
+        };
     }
 }
 
 // 数据管理类
 class DataManager {
     constructor() {
-        this.dataPath = path.join(YUNZAI_DIR, getConfig('dataPath') || 'data/mctool')
-        this.ensureDirectories()
+        const config = getConfig();
+        this.dataPath = path.join(YUNZAI_DIR, config.dataPath || 'data/mctool');
+        this.ensureDirectories();
         
         // 初始化默认数据文件
-        const defaultFiles = ['servers', 'current', 'historical', 'changes', 'subscriptions', 'verification', 'verification_requests']
+        const defaultFiles = ['servers', 'current', 'historical', 'changes', 'subscriptions', 'verification', 'verification_requests'];
         for (const file of defaultFiles) {
-            const filePath = this.getFilePath(file)
+            const filePath = this.getFilePath(file);
             if (!fs.existsSync(filePath)) {
-                this.write(file, {})
+                // 为验证相关文件设置特殊的初始数据结构
+                let initialData = {};
+                if (file === 'verification') {
+                    initialData = {
+                        groups: {},  // 群组配置
+                        global: {    // 全局配置
+                            enabled: false,
+                            allowDuplicateNames: false,
+                            autoReject: true
+                        }
+                    };
+                } else if (file === 'verification_requests') {
+                    initialData = {
+                        requests: {},  // 请求记录
+                        stats: {       // 统计数据
+                            total: 0,
+                            approved: 0,
+                            rejected: 0,
+                            pending: 0
+                        }
+                    };
+                }
+                this.write(file, initialData);
+                logger.info(`[MCTool] 创建数据文件: ${file}.json`);
             }
         }
     }
@@ -192,6 +189,135 @@ class DataManager {
         servers[serverId] = serverData
         return this.saveGroupData('servers', groupId, servers)
     }
+
+    /**
+     * 获取群组验证配置
+     * @param {string} groupId 群号
+     * @returns {object} 验证配置
+     */
+    getGroupVerification(groupId) {
+        const verification = this.read('verification');
+        
+        // 确保基础数据结构存在
+        if (!verification.groups) {
+            verification.groups = {};
+        }
+        if (!verification.global) {
+            verification.global = {
+                enabled: false,
+                allowDuplicateNames: false,
+                autoReject: true
+            };
+        }
+        
+        // 初始化群组配置
+        if (!verification.groups[groupId]) {
+            verification.groups[groupId] = {
+                enabled: verification.global.enabled,
+                allowDuplicateNames: verification.global.allowDuplicateNames,
+                autoReject: verification.global.autoReject,
+                users: {}
+            };
+            this.write('verification', verification);
+        }
+        
+        // 确保 users 对象存在
+        if (!verification.groups[groupId].users) {
+            verification.groups[groupId].users = {};
+            this.write('verification', verification);
+        }
+        
+        return verification.groups[groupId];
+    }
+
+    /**
+     * 保存群组验证配置
+     * @param {string} groupId 群号
+     * @param {object} config 验证配置
+     */
+    saveGroupVerification(groupId, config) {
+        const verification = this.read('verification');
+        verification.groups[groupId] = config;
+        return this.write('verification', verification);
+    }
+
+    /**
+     * 记录验证请求
+     * @param {string} groupId 群号
+     * @param {string} userId QQ号
+     * @param {object} request 请求信息
+     */
+    addVerificationRequest(groupId, userId, request) {
+        const requests = this.read('verification_requests');
+        
+        // 初始化数据结构
+        if (!requests.requests) {
+            requests.requests = {};
+        }
+        if (!requests.stats) {
+            requests.stats = {
+                total: 0,
+                approved: 0,
+                rejected: 0,
+                pending: 0
+            };
+        }
+        if (!requests.requests[groupId]) {
+            requests.requests[groupId] = {};
+        }
+        
+        requests.requests[groupId][userId] = {
+            ...request,
+            timestamp: Date.now()
+        };
+        requests.stats.total++;
+        requests.stats.pending++;
+        
+        return this.write('verification_requests', requests);
+    }
+
+    /**
+     * 更新验证请求状态
+     * @param {string} groupId 群号
+     * @param {string} userId QQ号
+     * @param {boolean} approved 是否通过
+     */
+    updateVerificationRequest(groupId, userId, approved) {
+        const requests = this.read('verification_requests');
+        
+        // 初始化数据结构
+        if (!requests.requests) {
+            requests.requests = {};
+        }
+        if (!requests.stats) {
+            requests.stats = {
+                total: 0,
+                approved: 0,
+                rejected: 0,
+                pending: 0
+            };
+        }
+        if (!requests.requests[groupId]) {
+            requests.requests[groupId] = {};
+        }
+        
+        // 如果存在请求记录，更新状态
+        if (requests.requests[groupId][userId]) {
+            const request = requests.requests[groupId][userId];
+            const oldStatus = request.status;
+            
+            // 如果之前是 pending 状态，更新统计数据
+            if (oldStatus === 'pending') {
+                requests.stats.pending--;
+                requests.stats[approved ? 'approved' : 'rejected']++;
+            }
+            
+            request.status = approved ? 'approved' : 'rejected';
+            request.updateTime = Date.now();
+            
+            this.write('verification_requests', requests);
+        }
+    }
 }
 
 // 权限检查
@@ -231,19 +357,49 @@ function getNestedValue(obj, path) {
 // 解析 API 响应
 function parseAPIResponse(data, parser) {
     try {
-        return {
-            online: getNestedValue(data, parser.online) || false,
-            players: {
-                online: getNestedValue(data, parser.players.online) || 0,
-                max: getNestedValue(data, parser.players.max) || 0,
-                list: getNestedValue(data, parser.players.list) || []
-            },
-            version: getNestedValue(data, parser.version) || '',
-            description: getNestedValue(data, parser.motd) || ''
+        // 检查数据是否有效
+        if (!data || typeof data !== 'object') {
+            return null;
         }
+
+        // 检查在线状态
+        const online = getNestedValue(data, parser.online);
+        if (online === undefined || online === null) {
+            return null;
+        }
+
+        // 获取玩家信息
+        const playerData = {
+            online: getNestedValue(data, parser.players.online) || 0,
+            max: getNestedValue(data, parser.players.max) || 0,
+            list: []
+        };
+
+        // 处理玩家列表
+        const playerList = getNestedValue(data, parser.players.list);
+        if (Array.isArray(playerList)) {
+            playerData.list = playerList.map(player => {
+                if (typeof player === 'string') {
+                    return { name: player, uuid: '' };
+                } else if (typeof player === 'object' && player !== null) {
+                    return {
+                        name: player.name || player.name_clean || '',
+                        uuid: player.uuid || player.id || ''
+                    };
+                }
+                return null;
+            }).filter(p => p !== null && p.name);
+        }
+
+        return {
+            online: online,
+            players: playerData,
+            version: getNestedValue(data, parser.version) || 'Unknown',
+            motd: getNestedValue(data, parser.motd) || ''
+        };
     } catch (error) {
-        logger.error('解析 API 响应失败:', error)
-        return null
+        logger.error('[MCTool] 解析 API 响应失败:', error);
+        return null;
     }
 }
 
@@ -293,31 +449,215 @@ async function queryAPI(apiConfig, host, port) {
     return null
 }
 
-export async function queryServerStatus(address) {
+/**
+ * 解析服务器状态数据
+ * @param {Object} data API返回的原始数据
+ * @param {Object} parser 解析器配置
+ * @returns {Object} 解析后的服务器状态
+ */
+function parseServerStatus(data, parser) {
     try {
-        const [host, port = '25565'] = address.split(':')
-        const apis = getConfig('apis')
-
-        // 依次尝试所有配置的 API
-        for (const api of apis) {
-            const result = await queryAPI(api, host, port)
-            if (result) {
-                return result
-            }
-            logger.debug(`[${api.name}] API 查询失败，尝试下一个`)
+        if (!data || typeof data !== 'object') {
+            return null;
         }
 
-        throw new Error('所有 API 查询失败')
+        // 基础状态
+        const status = {
+            online: data.online || false,
+            players: {
+                online: data.players?.online || 0,
+                max: data.players?.max || 0,
+                list: []
+            },
+            version: '',
+            description: '',
+            timestamp: Date.now()
+        };
+
+        // 处理玩家列表
+        if (data.players?.list && Array.isArray(data.players.list)) {
+            status.players.list = data.players.list.map(player => {
+                if (typeof player === 'string') {
+                    return { name: player, uuid: '' };
+                } else if (typeof player === 'object' && player !== null) {
+                    return {
+                        name: player.name || '',
+                        uuid: player.uuid || player.id || ''
+                    };
+                }
+                return null;
+            }).filter(p => p !== null && p.name);
+        }
+
+        // 处理版本信息
+        if (data.version) {
+            if (typeof data.version === 'object') {
+                status.version = data.version.name_clean || data.version.name || data.protocol?.name || data.version;
+            } else {
+                status.version = data.version;
+            }
+        } else if (data.protocol?.name) {
+            status.version = data.protocol.name;
+        }
+
+        // 处理服务器描述（MOTD）
+        if (data.motd) {
+            if (Array.isArray(data.motd.clean)) {
+                status.description = data.motd.clean.join('\n');
+            } else if (Array.isArray(data.motd.raw)) {
+                status.description = data.motd.raw.join('\n');
+            } else if (typeof data.motd.clean === 'string') {
+                status.description = data.motd.clean;
+            } else if (typeof data.motd.raw === 'string') {
+                status.description = data.motd.raw;
+            }
+        }
+
+        return status;
     } catch (error) {
-        logger.error(`查询服务器状态失败: ${error.message}`)
+        logger.error('[MCTool] 解析服务器状态失败:', error);
+        return null;
+    }
+}
+
+/**
+ * 查询服务器状态
+ * @param {string} address 服务器地址
+ * @param {Object} api API配置
+ * @param {number} retryCount 重试次数
+ * @returns {Promise<Object>} 服务器状态
+ */
+export async function queryServerStatus(address, api, retryCount = 0) {
+    try {
+        if (!address || !api) {
+            throw new Error('Invalid parameters');
+        }
+
+        const [host, port = '25565'] = address.split(':');
+        let url = api.url.replace('{host}', host).replace('{port}', port);
+        
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), (api.timeout || 30) * 1000);
+
+        const options = {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        };
+
+        if (process.env.https_proxy) {
+            options.agent = new HttpsProxyAgent(process.env.https_proxy);
+        }
+
+        const response = await fetch(url, options);
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const status = parseServerStatus(data, api.parser);
+
+        if (!status) {
+            throw new Error('Failed to parse server status');
+        }
+
+        // 添加API信息
+        status.api = {
+            name: api.name,
+            success: true,
+            error: null
+        };
+
+        return status;
+    } catch (error) {
+        logger.error(`[MCTool] API ${api.name} 查询失败:`, error.message);
+
+        if (retryCount < (api.maxRetries || 3)) {
+            logger.debug(`[MCTool] API ${api.name} 重试第 ${retryCount + 1} 次`);
+            await new Promise(resolve => setTimeout(resolve, api.retryDelay || 1000));
+            return queryServerStatus(address, api, retryCount + 1);
+        }
+
+        // 返回错误状态
         return {
             online: false,
             players: {
                 online: 0,
                 max: 0,
                 list: []
+            },
+            version: '',
+            description: '',
+            timestamp: Date.now(),
+            api: {
+                name: api.name,
+                success: false,
+                error: error.message
             }
+        };
+    }
+}
+
+/**
+ * 从对象中获取嵌套属性值
+ * @param {Object} obj 对象
+ * @param {string} path 属性路径
+ * @returns {any} 属性值
+ */
+function getValue(obj, path) {
+    if (!path || typeof path !== 'string') {
+        return undefined;
+    }
+    return path.split('.').reduce((o, i) => (o === null || o === undefined) ? undefined : o[i], obj);
+}
+
+/**
+ * 从对象中获取数组值
+ * @param {Object} obj 对象
+ * @param {string} path 属性路径
+ * @returns {Array} 数组值
+ */
+function getArrayValue(obj, path) {
+    if (!path || typeof path !== 'string') {
+        return [];
+    }
+    const arrayPath = path.endsWith('[]') ? path.slice(0, -2) : path;
+    const value = getValue(obj, arrayPath);
+    if (!Array.isArray(value)) return [];
+    
+    const fieldPath = path.match(/\[\]\.(.+)$/)?.[1];
+    if (fieldPath) {
+        return value.map(item => getValue(item, fieldPath)).filter(Boolean);
+    }
+    return value;
+}
+
+/**
+ * 从 PlayerDB API 获取玩家 UUID
+ * @param {string} username 玩家名
+ * @returns {Promise<{uuid: string|null, raw_id: string|null}>} UUID 信息
+ */
+export async function getPlayerUUID(username) {
+    try {
+        const response = await fetch(`https://playerdb.co/api/player/minecraft/${username}`);
+        if (!response.ok) {
+            return { uuid: null, raw_id: null };
         }
+        
+        const data = await response.json();
+        if (data.success && data.data?.player?.id) {
+            return {
+                uuid: data.data.player.id,           // 带横线的 UUID
+                raw_id: data.data.player.raw_id      // 不带横线的 UUID
+            };
+        }
+        return { uuid: null, raw_id: null };
+    } catch (error) {
+        logger.error(`[MCTool] 从 PlayerDB 获取玩家 ${username} 的UUID失败:`, error);
+        return { uuid: null, raw_id: null };
     }
 }
 
