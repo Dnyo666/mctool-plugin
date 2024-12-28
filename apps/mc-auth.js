@@ -1,4 +1,3 @@
-import plugin from '../../../lib/plugins/plugin.js';
 import { Data, getPlayerUUID, checkGroupAdmin } from './mc-utils.js';
 
 export class MCAuth extends plugin {

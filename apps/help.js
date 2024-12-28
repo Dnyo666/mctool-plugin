@@ -1,4 +1,3 @@
-import plugin from '../../../lib/plugins/plugin.js';
 import common from '../../../lib/common/common.js';
 
 export class helpApp extends plugin {

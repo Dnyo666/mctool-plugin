@@ -1,4 +1,3 @@
-import plugin from '../../../lib/plugins/plugin.js'
 import { Data, getConfig, queryServerStatus } from './mc-utils.js'
 import common from '../../../lib/common/common.js'
 import schedule from 'node-schedule'

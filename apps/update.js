@@ -1,4 +1,3 @@
-import plugin from '../../../lib/plugins/plugin.js'
 import { update as Update } from '../../other/update.js'
 
 const PluginName = 'mctool-plugin'

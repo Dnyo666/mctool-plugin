@@ -1,4 +1,3 @@
-import plugin from '../../../lib/plugins/plugin.js'
 import { Data, getPlayerUUID } from './mc-utils.js'
 import common from '../../../lib/common/common.js'
 

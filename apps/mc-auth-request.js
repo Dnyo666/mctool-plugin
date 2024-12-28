@@ -1,4 +1,3 @@
-import plugin from '../../../lib/plugins/plugin.js';
 import { Data, getPlayerUUID } from './mc-utils.js';
 
 // MC用户名格式验证正则
