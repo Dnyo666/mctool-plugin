@@ -1,8 +1,9 @@
+import plugin from '../../../lib/plugins/plugin.js'
 import { update as Update } from '../../other/update.js'
 
 const PluginName = 'mctool-plugin'
 
-export class MCToolUpdate extends plugin {
+export class update extends plugin {
   constructor () {
     super({
       name: 'MCTool_更新',
@@ -11,12 +12,12 @@ export class MCToolUpdate extends plugin {
       priority: 2000,
       rule: [
         {
-          reg: '^#*(MC工具|MCTool)(插件)?(强制)?更新$',
+          reg: '^#?(mc工具|mctool)(插件)?(强制)?更新$',
           fnc: 'update',
           permission: 'master'
         },
         {
-          reg: '^#*(MC工具|MCTool)(插件)?更新(日志|记录)$',
+          reg: '^#?(mc工具|mctool)(插件)?更新(日志|记录)$',
           fnc: 'update_log',
           permission: 'master'
         }
@@ -25,6 +26,7 @@ export class MCToolUpdate extends plugin {
   }
 
   async update (e) {
+    logger.info('[MC工具更新]', e.msg)
     e.isMaster = true
     if (e.at && !e.atme) return
     e.msg = `#${e.msg.includes('强制') ? '强制' : ''}更新${PluginName}`
