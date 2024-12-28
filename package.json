@@ -5,7 +5,6 @@
   "type": "module",
   "imports": {
     "#lib/*": "../../../lib/*",
-    "#guoba": "../../../plugins/Guoba-Plugin/guoba.support.js",
     "#components": "./components/index.js",
     "#models": "./models/index.js",
     "#utils": "./utils/index.js"
