@@ -48,9 +48,9 @@ export function supportGuoba() {
         pluginInfo: {
             name: 'mctool-plugin',
             title: 'MC工具箱',
-            author: '@Dnyo',
-            authorLink: 'https://github.com/Dnyo',
-            link: 'https://github.com/Dnyo/mctool-plugin',
+            author: '@Dnyo666',
+            authorLink: 'https://github.com/Dnyo666',
+            link: 'https://github.com/Dnyo666/mctool-plugin',
             isV3: true,
             isV2: false,
             description: 'Minecraft服务器状态查询、玩家绑定、进群验证等功能',
