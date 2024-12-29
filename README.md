@@ -170,6 +170,25 @@ verification:
 3. 推送功能会定期检查服务器状态，请合理设置检查间隔。
 4. 玩家名绑定会通过 PlayerDB API 验证玩家名的有效性。
 
+
+## TODO
+- 优化：
+  - [ ] 优化定时任务
+  - [ ] 添加超时重试机制
+  - [ ] 优化错误处理
+- 功能：
+  - [ ] 附魔计算器
+  - [ ] 百科查询
+  - [ ] 指令备忘录
+  - [ ] 玩家在线状态查询
+  - [ ] 玩家绑定信息云端
+
+- 文档：
+  - [ ] 添加详细的配置说明
+  - [ ] 完善安装教程
+  - [ ] 添加常见问题解答
+  - [ ] 编写开发者文档
+
 ## 联系方式
 
 - QQ群: [303104111](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=gdLRKPbtdd23Tw9M0HthGaU-PRXFToFY&authKey=ULxjgIsrwBQt74OIgbozC8aztsuHYPNvQcpERBqGf9TvUwdO2myrJxhSZTx2kwdh&noverify=0&group_code=303104111)
