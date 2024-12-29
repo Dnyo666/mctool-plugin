@@ -37,7 +37,7 @@ export class MCPushCommands extends plugin {
                 {
                     reg: '^#?[Mm][Cc]推送\\s*$',
                     fnc: 'getPushConfig',
-                    permission: 'admin'
+                    permission: 'all'
                 }
             ]
         });
@@ -275,7 +275,7 @@ export class MCPushCommands extends plugin {
                 e.reply(`已${action}全局状态推送功能`);
             }
         } catch (error) {
-            logger.error('[MCTool] ��作状态推送功能失败:', error);
+            logger.error('[MCTool] 操作状态推送功能失败:', error);
             e.reply('操作失败，请稍后重试');
         }
     }

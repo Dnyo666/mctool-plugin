@@ -27,7 +27,7 @@ export class MCServer extends plugin {
                     permission: 'admin'
                 },
                 {
-                    reg: '^#?[Mm][Cc](���态|status|列表|list)$',
+                    reg: '^#?[Mm][Cc](状态|status|列表|list)$',
                     fnc: 'getServerList',
                     permission: 'all'
                 },

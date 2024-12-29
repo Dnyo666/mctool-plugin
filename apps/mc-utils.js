@@ -327,13 +327,18 @@ export async function checkGroupAdmin(e) {
         return false
     }
 
-    const memberInfo = await global.Bot.getGroupMemberInfo(e.group_id, e.user_id)
-    if (!(['owner', 'admin'].includes(memberInfo.role) || e.isMaster)) {
-        e.reply('该功能需要群管理员权限')
+    try {
+        const memberInfo = await e.group.getMemberMap()
+        const userInfo = memberInfo.get(e.user_id)
+        if (!(['owner', 'admin'].includes(userInfo.role) || e.isMaster)) {
+            e.reply('该功能需要群管理员权限')
+            return false
+        }
+        return true
+    } catch (err) {
+        logger.error('[MCTool] 检查管理员权限失败:', err)
         return false
     }
-
-    return true
 }
 
 // 从对象中获取嵌套属性值
