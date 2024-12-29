@@ -85,12 +85,15 @@ export class MCPush extends plugin {
             });
 
             if (job) {
-                logger.mark('[MCTool] 定时任务已启动，下次执行时间:', job.nextInvocation());
+                logger.mark(`[MCTool] 定时任务已启动，cron表达式: ${cron}，下次执行时间: ${job.nextInvocation()}`);
             } else {
-                logger.error('[MCTool] 定时任务启动失败');
+                logger.error('[MCTool] 定时任务启动失败，请检查cron表达式格式是否正确');
             }
         } catch (error) {
-            logger.error('[MCTool] 启动定时任务失败:', error);
+            logger.error(`[MCTool] 启动定时任务失败: ${error.message}，cron表达式: ${config?.schedule?.cron || '未知'}`);
+            if (error.message.includes('cron')) {
+                logger.error('[MCTool] cron表达式格式说明：秒 分 时 日 月 周，例如：30 * * * * * 表示每分钟的第30秒执行');
+            }
         }
 
         logger.mark('[MCTool] 推送服务初始化完成');

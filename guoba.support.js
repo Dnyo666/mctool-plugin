@@ -387,12 +387,33 @@ export function supportGuoba() {
 
                         // 验证每个字段的格式
                         const patterns = {
-                            second: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+)$/,
-                            minute: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+)$/,
-                            hour: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+)$/,
-                            day: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+|\?)$/,
-                            month: /^(\*|[1-9]|1[0-2]|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/,
-                            week: /^(\*|[0-6]|SUN|MON|TUE|WED|THU|FRI|SAT)$/
+                            second: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+)$/,
+                            minute: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+)$/,
+                            hour: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+)$/,
+                            day: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+|\?)$/,
+                            month: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+|[1-9]|1[0-2]|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/,
+                            week: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+|[0-6]|SUN|MON|TUE|WED|THU|FRI|SAT|\?)$/
+                        }
+
+                        // 验证步长值
+                        function validateStep(value, field) {
+                            if (value.includes('/')) {
+                                const [start, step] = value.split('/')
+                                const stepNum = parseInt(step)
+                                if (isNaN(stepNum) || stepNum < 1) {
+                                    return false
+                                }
+                                if (start !== '*' && !/^\d+$/.test(start)) {
+                                    return false
+                                }
+                                if (start !== '*') {
+                                    const startNum = parseInt(start)
+                                    if (startNum < ranges[field].min || startNum > ranges[field].max) {
+                                        return false
+                                    }
+                                }
+                            }
+                            return true
                         }
 
                         const ranges = {
@@ -411,7 +432,14 @@ export function supportGuoba() {
                             
                             // 检查基本格式
                             if (!patterns[field].test(part)) {
-                                // 如果格式错误，使用默认值
+                                logger.warn(`[MCTool] ${field}字段格式错误：${part}，使用默认值`)
+                                parts[i] = defaultParts[i]
+                                continue
+                            }
+
+                            // 验证步长
+                            if (!validateStep(part, field)) {
+                                logger.warn(`[MCTool] ${field}字段步长值无效：${part}，使用默认值`)
                                 parts[i] = defaultParts[i]
                                 continue
                             }
@@ -436,6 +464,7 @@ export function supportGuoba() {
 
                                 // 如果值超出范围，使用默认值
                                 if (hasInvalidValue) {
+                                    logger.warn(`[MCTool] ${field}字段值超出范围：${part}，使用默认值`)
                                     parts[i] = defaultParts[i]
                                 }
                             }
