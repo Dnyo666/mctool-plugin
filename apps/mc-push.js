@@ -66,7 +66,26 @@ export class MCPush extends plugin {
             const config = getConfig();
             const { cron } = config.schedule;
 
-            job = schedule.scheduleJob(cron, async () => {
+            // 标准化cron表达式
+            const cronParts = cron.split(/\s+/).filter(Boolean);
+            if (cronParts.length !== 6) {
+                throw new Error('无效的cron表达式：必须包含6个字段（秒 分 时 日 月 周）');
+            }
+
+            // 转换cron表达式为node-schedule支持的格式
+            // node-schedule不支持秒级别的cron，需要特殊处理
+            const second = parseInt(cronParts[0]);
+            const scheduleRule = {
+                second: cronParts[0], // 秒
+                minute: cronParts[1], // 分
+                hour: cronParts[2],   // 时
+                date: cronParts[3],   // 日
+                month: cronParts[4],  // 月
+                dayOfWeek: cronParts[5] // 周
+            };
+
+            // 创建定时任务
+            job = schedule.scheduleJob(scheduleRule, async () => {
                 // 使用锁避免并发执行
                 if (this.isChecking) {
                     logger.mark('[MCTool] 上一次检查任务尚未完成，跳过本次检查');
@@ -74,7 +93,7 @@ export class MCPush extends plugin {
                 }
                 this.isChecking = true;
 
-                logger.mark('[MCTool] 开始执行定时检查任务...');
+                logger.mark(`[MCTool] 开始执行定时检查任务... (cron: ${cron})`);
                 try {
                     await this.checkServerStatus();
                 } catch (error) {
@@ -85,15 +104,32 @@ export class MCPush extends plugin {
             });
 
             if (job) {
-                logger.mark(`[MCTool] 定时任务已启动，cron表达式: ${cron}，下次执行时间: ${job.nextInvocation()}`);
+                const nextInvocation = job.nextInvocation();
+                logger.mark(`[MCTool] 定时任务已启动`);
+                logger.mark(`[MCTool] cron表达式: ${cron}`);
+                logger.mark(`[MCTool] 下次执行时间: ${nextInvocation}`);
+                
+                // 输出更详细的调度信息
+                const parts = [];
+                if (scheduleRule.second !== '*') parts.push(`第 ${scheduleRule.second} 秒`);
+                if (scheduleRule.minute !== '*') parts.push(`第 ${scheduleRule.minute} 分`);
+                if (scheduleRule.hour !== '*') parts.push(`第 ${scheduleRule.hour} 时`);
+                if (scheduleRule.date !== '*') parts.push(`${scheduleRule.date} 日`);
+                if (scheduleRule.month !== '*') parts.push(`${scheduleRule.month} 月`);
+                if (scheduleRule.dayOfWeek !== '*') parts.push(`星期 ${scheduleRule.dayOfWeek}`);
+                
+                logger.mark(`[MCTool] 执行规则: ${parts.length > 0 ? parts.join('，') : '每分钟'}`);
             } else {
-                logger.error('[MCTool] 定时任务启动失败，请检查cron表达式格式是否正确');
+                throw new Error('定时任务创建失败');
             }
         } catch (error) {
-            logger.error(`[MCTool] 启动定时任务失败: ${error.message}，cron表达式: ${config?.schedule?.cron || '未知'}`);
-            if (error.message.includes('cron')) {
-                logger.error('[MCTool] cron表达式格式说明：秒 分 时 日 月 周，例如：30 * * * * * 表示每分钟的第30秒执行');
-            }
+            logger.error(`[MCTool] 启动定时任务失败: ${error.message}`);
+            logger.error(`[MCTool] 当前cron表达式: ${config?.schedule?.cron || '未知'}`);
+            logger.error('[MCTool] 请检查cron表达式格式是否正确，格式说明：秒 分 时 日 月 周');
+            logger.error('[MCTool] 示例：');
+            logger.error('  - 30 * * * * *     每分钟的第30秒执行');
+            logger.error('  - 0 */5 * * * *    每5分钟的第0秒执行');
+            logger.error('  - 0 0,30 * * * *   每小时的第0分和第30分的第0秒执行');
         }
 
         logger.mark('[MCTool] 推送服务初始化完成');
