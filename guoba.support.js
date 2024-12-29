@@ -9,17 +9,19 @@ const __dirname = path.dirname(__filename)
 
 class Config {
     constructor() {
-        this.configPath = path.join(__dirname, 'config/config.yaml')
+        this.configPath = path.join(__dirname, 'config', 'config.yaml')
     }
 
     getConfig() {
         try {
             if (!fs.existsSync(this.configPath)) {
-                return {}
+                return this.getDefault()
             }
-            return YAML.parse(fs.readFileSync(this.configPath, 'utf8')) || {}
+            const config = YAML.parse(fs.readFileSync(this.configPath, 'utf8'))
+            return lodash.merge(this.getDefault(), config)
         } catch (err) {
-            return {}
+            logger.error('[MCTool] 读取配置文件失败:', err)
+            return this.getDefault()
         }
     }
 
@@ -29,22 +31,68 @@ class Config {
             if (!fs.existsSync(dirPath)) {
                 fs.mkdirSync(dirPath, { recursive: true })
             }
-            fs.writeFileSync(this.configPath, YAML.stringify(config), 'utf8')
+            const mergedConfig = lodash.merge(this.getConfig(), config)
+            fs.writeFileSync(this.configPath, YAML.stringify(mergedConfig), 'utf8')
             return true
         } catch (err) {
+            logger.error('[MCTool] 保存配置文件失败:', err)
             return false
         }
+    }
+
+    getDefault() {
+        return {
+            schedule: {
+                cron: '30 * * * * *',
+                startupNotify: true,
+                retryDelay: 5000
+            },
+            apis: [
+                {
+                    name: 'mcsrvstat',
+                    url: 'https://api.mcsrvstat.us/3/{host}:{port}',
+                    timeout: 30,
+                    maxRetries: 3,
+                    retryDelay: 1000,
+                    parser: {
+                        online: 'online',
+                        players: {
+                            online: 'players.online',
+                            max: 'players.max',
+                            list: 'players.list[].name'
+                        },
+                        version: 'version.name_clean',
+                        motd: 'motd.clean[]'
+                    }
+                }
+            ],
+            dataPath: 'data/mctool',
+            defaultGroup: {
+                enabled: false,
+                serverStatusPush: false,
+                newPlayerAlert: false
+            },
+            verification: {
+                enabled: false,
+                expireTime: 86400,
+                maxRequests: 5
+            }
+        }
+    }
+
+    modify(...args) {
+        const value = args.pop()
+        const key = args.join('.')
+        const config = this.getConfig()
+        lodash.set(config, key, value)
+        return this.setConfig(config)
     }
 }
 
 const config = new Config()
 
-/**
- * 支持锅巴配置
- */
 export function supportGuoba() {
     return {
-        // 插件信息
         pluginInfo: {
             name: 'mctool-plugin',
             title: 'MC工具箱',
@@ -54,20 +102,31 @@ export function supportGuoba() {
             isV3: true,
             isV2: false,
             description: 'Minecraft服务器状态查询、玩家绑定、进群验证等功能',
-            icon: 'minecraft:grass_block'
+            icon: 'arcticons:minecraft-alt-2',
+            iconColor: '#7CB342'
         },
-
-        // 配置项信息
         configInfo: {
             schemas: [
                 {
+                    component: 'Divider',
+                    label: '定时任务配置',
+                    componentProps: {
+                        orientation: 'left',
+                        plain: true
+                    }
+                },
+                {
                     field: 'schedule.cron',
                     label: '定时任务',
-                    bottomHelpMessage: '定时检查服务器状态的cron表达式',
+                    helpMessage: '注意：必须包含6个字段（秒 分 时 日 月 周），例如：30 * * * * *',
+                    bottomHelpMessage: '默认每分钟的第30秒执行一次。如果只想修改分钟，请保持其他字段为 * 号。示例：30 1,2,3 * * * * 表示在每小时的1分2分3分的第30秒执行',
                     component: 'EasyCron',
                     required: true,
                     componentProps: {
-                        placeholder: '请输入或选择Cron表达式'
+                        placeholder: '30 * * * * *',
+                        defaultValue: '30 * * * * *',
+                        showSecond: true,
+                        width: '100%'
                     }
                 },
                 {
@@ -86,76 +145,312 @@ export function supportGuoba() {
                     defaultValue: 5000,
                     componentProps: {
                         min: 1000,
-                        step: 1000
+                        max: 60000,
+                        step: 1000,
+                        addonAfter: '毫秒'
+                    }
+                },
+                {
+                    component: 'Divider',
+                    label: 'API配置',
+                    componentProps: {
+                        orientation: 'left',
+                        plain: true
                     }
                 },
                 {
                     field: 'apis',
                     label: 'API配置',
                     bottomHelpMessage: '服务器状态查询API配置',
-                    component: 'GTags',
-                    defaultValue: [
-                        {
-                            name: 'mcsrvstat',
-                            url: 'https://api.mcsrvstat.us/3/{host}:{port}',
-                            timeout: 30,
-                            maxRetries: 3,
-                            retryDelay: 1000,
-                            parser: {
-                                online: 'online',
-                                players: {
-                                    online: 'players.online',
-                                    max: 'players.max',
-                                    list: 'players.list[].name'
-                                },
-                                version: 'version.name_clean',
-                                motd: 'motd.clean[]'
+                    component: 'GSubForm',
+                    componentProps: {
+                        multiple: true,
+                        schemas: [
+                            {
+                                field: 'name',
+                                label: 'API名称',
+                                component: 'Input',
+                                required: true,
+                                componentProps: {
+                                    placeholder: '例如：mcsrvstat'
+                                }
+                            },
+                            {
+                                field: 'url',
+                                label: 'API地址',
+                                component: 'Input',
+                                required: true,
+                                componentProps: {
+                                    placeholder: '例如：https://api.mcsrvstat.us/3/{host}:{port}'
+                                }
+                            },
+                            {
+                                field: 'timeout',
+                                label: '超时时间',
+                                component: 'InputNumber',
+                                required: true,
+                                componentProps: {
+                                    min: 5,
+                                    max: 60,
+                                    step: 5,
+                                    addonAfter: '秒'
+                                }
+                            },
+                            {
+                                field: 'maxRetries',
+                                label: '最大重试次数',
+                                component: 'InputNumber',
+                                required: true,
+                                componentProps: {
+                                    min: 1,
+                                    max: 5,
+                                    step: 1,
+                                    addonAfter: '次'
+                                }
+                            },
+                            {
+                                field: 'retryDelay',
+                                label: '重试延迟',
+                                component: 'InputNumber',
+                                required: true,
+                                componentProps: {
+                                    min: 1000,
+                                    max: 10000,
+                                    step: 1000,
+                                    addonAfter: '毫秒'
+                                }
+                            },
+                            {
+                                field: 'parser',
+                                label: '解析配置',
+                                component: 'GSubForm',
+                                componentProps: {
+                                    schemas: [
+                                        {
+                                            field: 'online',
+                                            label: '在线状态字段',
+                                            component: 'Input',
+                                            required: true,
+                                            defaultValue: 'online',
+                                            componentProps: {
+                                                placeholder: '例如：online'
+                                            }
+                                        },
+                                        {
+                                            field: 'players.online',
+                                            label: '在线人数字段',
+                                            component: 'Input',
+                                            required: true,
+                                            defaultValue: 'players.online',
+                                            componentProps: {
+                                                placeholder: '例如：players.online'
+                                            }
+                                        },
+                                        {
+                                            field: 'players.max',
+                                            label: '最大人数字段',
+                                            component: 'Input',
+                                            required: true,
+                                            defaultValue: 'players.max',
+                                            componentProps: {
+                                                placeholder: '例如：players.max'
+                                            }
+                                        },
+                                        {
+                                            field: 'players.list',
+                                            label: '玩家列表字段',
+                                            component: 'Input',
+                                            required: true,
+                                            defaultValue: 'players.list[].name',
+                                            componentProps: {
+                                                placeholder: '例如：players.list[].name'
+                                            }
+                                        },
+                                        {
+                                            field: 'version',
+                                            label: '版本字段',
+                                            component: 'Input',
+                                            required: true,
+                                            defaultValue: 'version.name_clean',
+                                            componentProps: {
+                                                placeholder: '例如：version.name_clean'
+                                            }
+                                        },
+                                        {
+                                            field: 'motd',
+                                            label: 'MOTD字段',
+                                            component: 'Input',
+                                            required: true,
+                                            defaultValue: 'motd.clean[]',
+                                            componentProps: {
+                                                placeholder: '例如：motd.clean[]'
+                                            }
+                                        }
+                                    ]
+                                }
                             }
-                        },
-                        {
-                            name: 'mcstatus',
-                            url: 'https://api.mcstatus.io/v2/status/java/{host}:{port}',
-                            timeout: 30,
-                            maxRetries: 3,
-                            retryDelay: 1000,
-                            parser: {
-                                online: 'online',
-                                players: {
-                                    online: 'players.online',
-                                    max: 'players.max',
-                                    list: 'players.list[].name_clean'
-                                },
-                                version: 'version.name_clean',
-                                motd: 'motd.clean[]'
-                            }
-                        }
-                    ]
+                        ]
+                    }
+                },
+                {
+                    component: 'Divider',
+                    label: '群组配置',
+                    componentProps: {
+                        orientation: 'left',
+                        plain: true
+                    }
+                },
+                {
+                    field: 'defaultGroup.enabled',
+                    label: '全局推送功能',
+                    bottomHelpMessage: '新群组是否默认开启全局推送功能',
+                    component: 'Switch',
+                    defaultValue: false
+                },
+                {
+                    field: 'defaultGroup.serverStatusPush',
+                    label: '默认开启状态推送',
+                    bottomHelpMessage: '新群组是否默认开启服务器状态推送',
+                    component: 'Switch',
+                    defaultValue: false
+                },
+                {
+                    field: 'defaultGroup.newPlayerAlert',
+                    label: '默认开启新人提醒',
+                    bottomHelpMessage: '新群组是否默认开启新玩家提醒',
+                    component: 'Switch',
+                    defaultValue: false
+                },
+                {
+                    component: 'Divider',
+                    label: '验证配置',
+                    componentProps: {
+                        orientation: 'left',
+                        plain: true
+                    }
+                },
+                {
+                    field: 'verification.enabled',
+                    label: '验证功能',
+                    bottomHelpMessage: '是否默认开启验证功能',
+                    component: 'Switch',
+                    defaultValue: false
+                },
+                {
+                    field: 'verification.expireTime',
+                    label: '验证过期时间',
+                    bottomHelpMessage: '验证请求过期时间（秒）',
+                    component: 'InputNumber',
+                    required: true,
+                    defaultValue: 86400,
+                    componentProps: {
+                        min: 300,
+                        max: 604800,
+                        step: 300,
+                        addonAfter: '秒'
+                    }
+                },
+                {
+                    field: 'verification.maxRequests',
+                    label: '最大验证请求数',
+                    bottomHelpMessage: '每个用户最大验证请求数',
+                    component: 'InputNumber',
+                    required: true,
+                    defaultValue: 5,
+                    componentProps: {
+                        min: 1,
+                        max: 20,
+                        step: 1,
+                        addonAfter: '次'
+                    }
                 }
             ],
-
-            // 获取配置数据
             getConfigData() {
                 return config.getConfig()
             },
-
-            // 设置配置数据
-            setConfigData(data, { Result }) {
+            async setConfigData(data, { Result }) {
                 try {
-                    let currentConfig = config.getConfig()
-                    let newConfig = {}
-                    
-                    // 使用 lodash 合并配置
-                    for (let [keyPath, value] of Object.entries(data)) {
-                        lodash.set(newConfig, keyPath, value)
+                    // 处理cron表达式
+                    if (data['schedule.cron']) {
+                        let cronExp = data['schedule.cron'].trim()
+                        // 标准化cron表达式，保留所有有效字符
+                        const parts = cronExp.split(/\s+/).filter(part => part !== '')
+                        
+                        // 获取当前配置的cron表达式作为默认值
+                        const currentConfig = config.getConfig()
+                        const defaultParts = (currentConfig.schedule.cron || '30 * * * * *').split(/\s+/)
+                        
+                        // 如果某些字段缺失，使用默认值填充
+                        while (parts.length < 6) {
+                            parts.push(defaultParts[parts.length])
+                        }
+
+                        // 验证每个字段的格式
+                        const patterns = {
+                            second: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+)$/,
+                            minute: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+)$/,
+                            hour: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+)$/,
+                            day: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+|\?)$/,
+                            month: /^(\*|[1-9]|1[0-2]|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/,
+                            week: /^(\*|[0-6]|SUN|MON|TUE|WED|THU|FRI|SAT)$/
+                        }
+
+                        const ranges = {
+                            second: { min: 0, max: 59 },
+                            minute: { min: 0, max: 59 },
+                            hour: { min: 0, max: 23 },
+                            day: { min: 1, max: 31 },
+                            month: { min: 1, max: 12 },
+                            week: { min: 0, max: 6 }
+                        }
+
+                        const fields = ['second', 'minute', 'hour', 'day', 'month', 'week']
+                        for (let i = 0; i < 6; i++) {
+                            const part = parts[i]
+                            const field = fields[i]
+                            
+                            // 检查基本格式
+                            if (!patterns[field].test(part)) {
+                                // 如果格式错误，使用默认值
+                                parts[i] = defaultParts[i]
+                                continue
+                            }
+
+                            // 如果不是特殊字符，检查数值范围
+                            if (part !== '*' && part !== '?' && !part.includes('/')) {
+                                const values = part.split(',').map(v => {
+                                    if (v.includes('-')) {
+                                        const [start, end] = v.split('-').map(Number)
+                                        return { start, end }
+                                    }
+                                    return { start: Number(v), end: Number(v) }
+                                })
+
+                                let hasInvalidValue = false
+                                for (const { start, end } of values) {
+                                    if (start < ranges[field].min || end > ranges[field].max) {
+                                        hasInvalidValue = true
+                                        break
+                                    }
+                                }
+
+                                // 如果值超出范围，使用默认值
+                                if (hasInvalidValue) {
+                                    parts[i] = defaultParts[i]
+                                }
+                            }
+                        }
+
+                        // 保存标准化后的表达式
+                        data['schedule.cron'] = parts.join(' ')
                     }
-                    newConfig = lodash.merge({}, currentConfig, newConfig)
-                    
-                    if (config.setConfig(newConfig)) {
-                        return Result.ok({}, '保存成功~')
-                    } else {
-                        return Result.error('保存失败')
+
+                    for (const key in data) {
+                        config.modify(...key.split('.'), data[key])
                     }
+                    return Result.ok({}, '保存成功~')
                 } catch (err) {
+                    logger.error('[MCTool] 保存配置失败:', err)
                     return Result.error(`保存失败：${err.message}`)
                 }
             }

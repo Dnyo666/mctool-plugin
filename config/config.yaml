@@ -33,13 +33,13 @@ apis:
 # 定时任务配置
 schedule:
   cron: "30 * * * * *"  # 每分钟的第30秒执行
-  startupNotify: true   # 是否在机器人启动时发送服务器状态推送
+  startupNotify: false   # 是否在机器人启动时发送服务器状态推送
   retryDelay: 5000      # 重试等待时间（毫秒）
 
 # 数据存储路径
 dataPath: data/mctool
 
-# 默认群组配置
+# 默认群组推送配置
 defaultGroup:
   enabled: false
   serverStatusPush: false
