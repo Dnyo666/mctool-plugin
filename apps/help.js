@@ -4,7 +4,7 @@ export class helpApp extends plugin {
     constructor() {
         super({
             name: 'MCTool-帮助',
-            dsc: 'MC服务器管理帮助',
+            dsc: 'MC工具箱帮助',
             event: 'message',
             priority: 5000,
             rule: [
@@ -22,10 +22,9 @@ export class helpApp extends plugin {
 
         // 基本信息
         forwardMsgs.push(
-            `MC服务器管理系统\n` +
-            `版本：V2.1\n` +
-            `作者：浅巷墨黎\n` +
-            `项目地址：https://github.com/Dnyo666/mctool-plugin`
+            `MC工具箱\n` +
+            `版本：V2.3\n` +
+            `作者：浅巷墨黎\n`
         );
 
         // 基础指令
@@ -69,7 +68,7 @@ export class helpApp extends plugin {
             `用户设置：\n` +
             `#mc绑定 用户名 - 绑定正版用户名\n` +
             `#mc解绑 用户名 - 解绑正版用户名\n` +
-            `#mc信息 - 查看已绑定正版用户名`
+            `#mc信息 - 查看已绑定正版用户名uuid和皮肤`
         );
 
         // 使用合并转发发送消息
