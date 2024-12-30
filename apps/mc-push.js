@@ -80,7 +80,7 @@ export class MCPush extends plugin {
             // 转换cron表达式为node-schedule支持的格式
             // node-schedule不支持秒级别的cron，需要特殊处理
             const second = parseInt(cronParts[0]);
-            const minute = cronParts[1].includes('*/') ? Array.from({ length: 60 / parseInt(cronParts[1].split('*/')[1]) }, (_, i) => i * parseInt(cronParts[1].split('*/')[1])) : cronParts[1].split(',').map(Number);
+            const minute = cronParts[1].includes('*/') ? Array.from({ length: 60 / parseInt(cronParts[1].split('*/')[1]) }, (_, i) => i * parseInt(cronParts[1].split('*/')[1])) : cronParts[1] === '*' ? null : cronParts[1].split(',').map(Number);
             const hour = cronParts[2] === '*' ? null : cronParts[2].split(',').map(Number);
             const date = cronParts[3] === '*' ? null : cronParts[3].split(',').map(Number);
             const month = cronParts[4] === '*' ? null : cronParts[4].split(',').map(Number);
@@ -88,11 +88,11 @@ export class MCPush extends plugin {
 
             const scheduleRule = {
                 second: second, // 确保秒字段为整数
-                minute: minute, // 确保分钟字段为数组
-                hour: hour,     // 确保小时字段为整数或数组
-                date: date,     // 确保日期字段为整数或数组
-                month: month,   // 确保月份字段为整数或数组
-                dayOfWeek: dayOfWeek // 确保星期字段为整数或数组
+                minute: minute, // 确保分钟字段为数组或null
+                hour: hour,     // 确保小时字段为数组或null
+                date: date,     // 确保日期字段为数组或null
+                month: month,   // 确保月份字段为数组或null
+                dayOfWeek: dayOfWeek // 确保星期字段为数组或null
             };
 
             // 创建定时任务
