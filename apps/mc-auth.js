@@ -1,4 +1,4 @@
-import { Data, getPlayerUUID, checkGroupAdmin } from './mc-utils.js';
+import { Data, getPlayerUUID, checkGroupAdmin, getConfig } from './mc-utils.js';
 
 export class MCAuth extends plugin {
     constructor() {
@@ -64,7 +64,8 @@ export class MCAuth extends plugin {
         // 检查权限
         if (!await checkGroupAdmin(e)) return false;
 
-        const config = Data.getGroupVerification(e.group_id);
+        // 获取群组验证配置
+        let config = Data.getGroupVerification(e.group_id);
         
         // 构建状态消息
         const message = [
@@ -72,6 +73,8 @@ export class MCAuth extends plugin {
             `验证状态：${config.enabled ? '已开启' : '已关闭'}`,
             `允许重复使用：${config.allowDuplicateNames ? '是' : '否'}`,
             `自动拒绝重复：${config.autoReject ? '是' : '否'}`,
+            `验证请求过期时间：${config.expireTime}秒`,
+            `最大验证请求数：${config.maxRequests}次`,
             '',
             '可用命令：',
             '#mc验证 开启/关闭 - 开启或关闭验证功能',
@@ -93,7 +96,30 @@ export class MCAuth extends plugin {
         if (!await checkGroupAdmin(e)) return false;
 
         const enable = e.msg.includes('开启');
-        const config = Data.getGroupVerification(e.group_id);
+        
+        // 获取全局配置
+        const globalConfig = getConfig();
+        const defaultVerification = {
+            enabled: globalConfig.verification?.enabled ?? false,
+            expireTime: globalConfig.verification?.expireTime ?? 86400,
+            maxRequests: globalConfig.verification?.maxRequests ?? 5,
+            allowDuplicateNames: false,
+            autoReject: true
+        };
+
+        // 获取或创建群组配置
+        let config = Data.getGroupVerification(e.group_id);
+        if (!config || Object.keys(config).length === 0) {
+            config = {
+                enabled: defaultVerification.enabled,
+                expireTime: defaultVerification.expireTime,
+                maxRequests: defaultVerification.maxRequests,
+                allowDuplicateNames: defaultVerification.allowDuplicateNames,
+                autoReject: defaultVerification.autoReject,
+                users: {}
+            };
+        }
+
         config.enabled = enable;
         Data.saveGroupVerification(e.group_id, config);
 
@@ -109,7 +135,30 @@ export class MCAuth extends plugin {
         if (!await checkGroupAdmin(e)) return false;
 
         const enable = e.msg.includes('开启');
-        const config = Data.getGroupVerification(e.group_id);
+        
+        // 获取全局配置
+        const globalConfig = getConfig();
+        const defaultVerification = {
+            enabled: globalConfig.verification?.enabled ?? false,
+            expireTime: globalConfig.verification?.expireTime ?? 86400,
+            maxRequests: globalConfig.verification?.maxRequests ?? 5,
+            allowDuplicateNames: false,
+            autoReject: true
+        };
+
+        // 获取或创建群组配置
+        let config = Data.getGroupVerification(e.group_id);
+        if (!config || Object.keys(config).length === 0) {
+            config = {
+                enabled: defaultVerification.enabled,
+                expireTime: defaultVerification.expireTime,
+                maxRequests: defaultVerification.maxRequests,
+                allowDuplicateNames: defaultVerification.allowDuplicateNames,
+                autoReject: defaultVerification.autoReject,
+                users: {}
+            };
+        }
+
         config.allowDuplicateNames = enable;
         Data.saveGroupVerification(e.group_id, config);
 
@@ -125,7 +174,30 @@ export class MCAuth extends plugin {
         if (!await checkGroupAdmin(e)) return false;
 
         const enable = e.msg.includes('开启');
-        const config = Data.getGroupVerification(e.group_id);
+        
+        // 获取全局配置
+        const globalConfig = getConfig();
+        const defaultVerification = {
+            enabled: globalConfig.verification?.enabled ?? false,
+            expireTime: globalConfig.verification?.expireTime ?? 86400,
+            maxRequests: globalConfig.verification?.maxRequests ?? 5,
+            allowDuplicateNames: false,
+            autoReject: true
+        };
+
+        // 获取或创建群组配置
+        let config = Data.getGroupVerification(e.group_id);
+        if (!config || Object.keys(config).length === 0) {
+            config = {
+                enabled: defaultVerification.enabled,
+                expireTime: defaultVerification.expireTime,
+                maxRequests: defaultVerification.maxRequests,
+                allowDuplicateNames: defaultVerification.allowDuplicateNames,
+                autoReject: defaultVerification.autoReject,
+                users: {}
+            };
+        }
+
         config.autoReject = enable;
         Data.saveGroupVerification(e.group_id, config);
 

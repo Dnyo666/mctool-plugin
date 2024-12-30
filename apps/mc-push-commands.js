@@ -101,26 +101,28 @@ export class MCPushCommands extends plugin {
         try {
             const subscriptions = Data.read('subscriptions') || {};
             const servers = Data.getGroupData('servers', e.group_id);
+            const config = getConfig();  // 获取全局配置
             
-            // 如果群组配置不存在，创建默认配置
+            // 如果群组配置不存在，使用全局配置创建默认配置
             if (!subscriptions[e.group_id]) {
                 subscriptions[e.group_id] = {
-                    enabled: false,
-                    serverStatusPush: false,
+                    enabled: config.defaultGroup.enabled || false,
+                    serverStatusPush: config.defaultGroup.serverStatusPush || false,
+                    newPlayerAlert: config.defaultGroup.newPlayerAlert || false,
                     servers: {}
                 };
 
                 // 为所有服务器创建默认配置
                 for (const [serverId] of Object.entries(servers)) {
                     subscriptions[e.group_id].servers[serverId] = {
-                        enabled: false,
-                        newPlayerAlert: false,
+                        enabled: config.defaultGroup.enabled || false,
+                        newPlayerAlert: config.defaultGroup.newPlayerAlert || false,
                         players: []
                     };
                 }
 
                 Data.write('subscriptions', subscriptions);
-                logger.mark(`[MCTool] 已为群组 ${e.group_id} 创建默认推送配置`);
+                logger.mark(`[MCTool] 已为群组 ${e.group_id} 创建默认推送配置，使用全局配置：${JSON.stringify(config.defaultGroup)}`);
             }
 
             const groupConfig = subscriptions[e.group_id];
@@ -135,11 +137,11 @@ export class MCPushCommands extends plugin {
 
             // 遍历所有服务器，生成配置信息
             for (const [serverId, server] of Object.entries(servers)) {
-                // 如果服务器配置不存在，创建默认配置
+                // 如果服务器配置不存在，使用全局配置创建默认配置
                 if (!groupConfig.servers[serverId]) {
                     groupConfig.servers[serverId] = {
-                        enabled: false,
-                        newPlayerAlert: false,
+                        enabled: config.defaultGroup.enabled || false,
+                        newPlayerAlert: config.defaultGroup.newPlayerAlert || false,
                         players: []
                     };
                 }

@@ -197,6 +197,7 @@ class DataManager {
      */
     getGroupVerification(groupId) {
         const verification = this.read('verification');
+        const config = getConfig();
         
         // 确保基础数据结构存在
         if (!verification.groups) {
@@ -204,10 +205,22 @@ class DataManager {
         }
         if (!verification.global) {
             verification.global = {
-                enabled: false,
+                enabled: config.verification?.enabled ?? false,
                 allowDuplicateNames: false,
-                autoReject: true
+                autoReject: true,
+                expireTime: config.verification?.expireTime ?? 86400,
+                maxRequests: config.verification?.maxRequests ?? 5
             };
+            this.write('verification', verification);
+        } else {
+            // 更新全局配置
+            verification.global = {
+                ...verification.global,
+                enabled: config.verification?.enabled ?? verification.global.enabled ?? false,
+                expireTime: config.verification?.expireTime ?? verification.global.expireTime ?? 86400,
+                maxRequests: config.verification?.maxRequests ?? verification.global.maxRequests ?? 5
+            };
+            this.write('verification', verification);
         }
         
         // 初始化群组配置
@@ -216,14 +229,19 @@ class DataManager {
                 enabled: verification.global.enabled,
                 allowDuplicateNames: verification.global.allowDuplicateNames,
                 autoReject: verification.global.autoReject,
+                expireTime: verification.global.expireTime,
+                maxRequests: verification.global.maxRequests,
                 users: {}
             };
             this.write('verification', verification);
-        }
-        
-        // 确保 users 对象存在
-        if (!verification.groups[groupId].users) {
-            verification.groups[groupId].users = {};
+        } else {
+            // 更新群组配置
+            verification.groups[groupId] = {
+                ...verification.groups[groupId],
+                expireTime: verification.global.expireTime,
+                maxRequests: verification.global.maxRequests,
+                users: verification.groups[groupId].users || {}
+            };
             this.write('verification', verification);
         }
         

@@ -31,8 +31,65 @@ class Config {
             if (!fs.existsSync(dirPath)) {
                 fs.mkdirSync(dirPath, { recursive: true })
             }
+
+            // 合并新配置
             const mergedConfig = lodash.merge(this.getConfig(), config)
-            fs.writeFileSync(this.configPath, YAML.stringify(mergedConfig), 'utf8')
+
+            // 使用模板生成配置文件内容
+            const content = `#不知道的不要乱改
+
+# API配置
+apis:
+  - name: ${mergedConfig.apis[0].name}
+    url: ${mergedConfig.apis[0].url}
+    timeout: ${mergedConfig.apis[0].timeout}  # 超时时间（秒）
+    maxRetries: ${mergedConfig.apis[0].maxRetries}  # 最大重试次数
+    retryDelay: ${mergedConfig.apis[0].retryDelay}  # 重试延迟（毫秒）
+    parser:  # 解析配置
+      online: ${mergedConfig.apis[0].parser.online}  # 在线状态字段
+      players:  # 玩家相关字段
+        online: ${mergedConfig.apis[0].parser.players.online}  # 在线人数字段
+        max: ${mergedConfig.apis[0].parser.players.max}  # 最大人数字段
+        list: ${mergedConfig.apis[0].parser.players.list}  # 玩家列表字段
+      version: ${mergedConfig.apis[0].parser.version}  # 版本字段
+      motd: ${mergedConfig.apis[0].parser.motd}  # MOTD字段
+
+  - name: ${mergedConfig.apis[1]?.name || 'mcstatus'}
+    url: ${mergedConfig.apis[1]?.url || 'https://api.mcstatus.io/v2/status/java/{host}:{port}'}
+    timeout: ${mergedConfig.apis[1]?.timeout || 30}  # 超时时间（秒）
+    maxRetries: ${mergedConfig.apis[1]?.maxRetries || 3}  # 最大重试次数
+    retryDelay: ${mergedConfig.apis[1]?.retryDelay || 1000}  # 重试延迟（毫秒）
+    parser:  # 解析配置
+      online: ${mergedConfig.apis[1]?.parser?.online || 'online'}  # 在线状态字段
+      players:  # 玩家相关字段
+        online: ${mergedConfig.apis[1]?.parser?.players?.online || 'players.online'}  # 在线人数字段
+        max: ${mergedConfig.apis[1]?.parser?.players?.max || 'players.max'}  # 最大人数字段
+        list: ${mergedConfig.apis[1]?.parser?.players?.list || 'players.list[].name_clean'}  # 玩家列表字段
+      version: ${mergedConfig.apis[1]?.parser?.version || 'version.name_clean'}  # 版本字段
+      motd: ${mergedConfig.apis[1]?.parser?.motd || 'motd.clean[]'}  # MOTD字段
+
+# 定时任务配置
+schedule:
+  cron: "${mergedConfig.schedule.cron}"  # 每分钟的第30秒执行
+  startupNotify: ${mergedConfig.schedule.startupNotify}   # 是否在机器人启动时发送服务器状态推送
+  retryDelay: ${mergedConfig.schedule.retryDelay}      # 重试等待时间（毫秒）
+
+# 数据存储路径
+dataPath: ${mergedConfig.dataPath}
+
+# 默认群组推送配置
+defaultGroup:
+  enabled: ${mergedConfig.defaultGroup.enabled}          # 是否默认开启功能
+  serverStatusPush: ${mergedConfig.defaultGroup.serverStatusPush} # 是否默认开启服务器状态推送
+  newPlayerAlert: ${mergedConfig.defaultGroup.newPlayerAlert}   # 是否默认开启新玩家提醒
+
+# 验证配置
+verification:
+  enabled: ${mergedConfig.verification.enabled}         # 是否默认开启验证
+  expireTime: ${mergedConfig.verification.expireTime}     # 验证请求过期时间（秒）
+  maxRequests: ${mergedConfig.verification.maxRequests}        # 最大验证请求数`
+
+            fs.writeFileSync(this.configPath, content, 'utf8')
             return true
         } catch (err) {
             logger.error('[MCTool] 保存配置文件失败:', err)
@@ -376,11 +433,13 @@ export function supportGuoba() {
                         // 标准化cron表达式，保留所有有效字符
                         const parts = cronExp.split(/\s+/).filter(part => part !== '')
                         
-                        // 获取当前配置的cron表达式作为默认值
-                        const currentConfig = config.getConfig()
-                        const defaultParts = (currentConfig.schedule.cron || '30 * * * * *').split(/\s+/)
+                        // 处理7位cron表达式（秒 分 时 日 月 周 年）转为6位（秒 分 时 日 月 周）
+                        if (parts.length === 7) {
+                            parts.pop() // 移除年份字段
+                        }
                         
-                        // 如果某些字段缺失，使用默认值填充
+                        // 如果字段数量不足6位，使用默认值填充
+                        const defaultParts = ['30', '*', '*', '*', '*', '*']
                         while (parts.length < 6) {
                             parts.push(defaultParts[parts.length])
                         }
@@ -393,27 +452,6 @@ export function supportGuoba() {
                             day: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+|\?)$/,
                             month: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+|[1-9]|1[0-2]|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/,
                             week: /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\d+\/\d+|\*\/\d+|[0-6]|SUN|MON|TUE|WED|THU|FRI|SAT|\?)$/
-                        }
-
-                        // 验证步长值
-                        function validateStep(value, field) {
-                            if (value.includes('/')) {
-                                const [start, step] = value.split('/')
-                                const stepNum = parseInt(step)
-                                if (isNaN(stepNum) || stepNum < 1) {
-                                    return false
-                                }
-                                if (start !== '*' && !/^\d+$/.test(start)) {
-                                    return false
-                                }
-                                if (start !== '*') {
-                                    const startNum = parseInt(start)
-                                    if (startNum < ranges[field].min || startNum > ranges[field].max) {
-                                        return false
-                                    }
-                                }
-                            }
-                            return true
                         }
 
                         const ranges = {
@@ -433,13 +471,6 @@ export function supportGuoba() {
                             // 检查基本格式
                             if (!patterns[field].test(part)) {
                                 logger.warn(`[MCTool] ${field}字段格式错误：${part}，使用默认值`)
-                                parts[i] = defaultParts[i]
-                                continue
-                            }
-
-                            // 验证步长
-                            if (!validateStep(part, field)) {
-                                logger.warn(`[MCTool] ${field}字段步长值无效：${part}，使用默认值`)
                                 parts[i] = defaultParts[i]
                                 continue
                             }
@@ -472,6 +503,7 @@ export function supportGuoba() {
 
                         // 保存标准化后的表达式
                         data['schedule.cron'] = parts.join(' ')
+                        logger.mark(`[MCTool] 处理后的cron表达式: ${data['schedule.cron']}`);
                     }
 
                     for (const key in data) {

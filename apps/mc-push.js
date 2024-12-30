@@ -43,14 +43,41 @@ export class MCPush extends plugin {
         // 获取配置
         const config = getConfig();
         const { cron } = config.schedule;
+        const defaultGroup = config.defaultGroup || {};
 
-        
         // 确保数据文件存在
         const current = Data.read('current') || {};
         const historical = Data.read('historical') || {};
+        const subscriptions = Data.read('subscriptions') || {};
+        
+        // 更新所有未配置的群组为默认配置
+        for (const [groupId, groupConfig] of Object.entries(subscriptions)) {
+            if (!groupConfig || Object.keys(groupConfig).length === 0) {
+                subscriptions[groupId] = {
+                    enabled: defaultGroup.enabled || false,
+                    serverStatusPush: defaultGroup.serverStatusPush || false,
+                    newPlayerAlert: defaultGroup.newPlayerAlert || false,
+                    servers: {}
+                };
+
+                // 获取该群的服务器列表
+                const servers = Data.getGroupData('servers', groupId);
+                // 为所有服务器创建默认配置
+                for (const [serverId] of Object.entries(servers)) {
+                    subscriptions[groupId].servers[serverId] = {
+                        enabled: defaultGroup.enabled || false,
+                        newPlayerAlert: defaultGroup.newPlayerAlert || false,
+                        players: []
+                    };
+                }
+
+                logger.mark(`[MCTool] 已为群组 ${groupId} 创建默认推送配置，使用全局配置：${JSON.stringify(defaultGroup)}`);
+            }
+        }
         
         Data.write('current', current);
         Data.write('historical', historical);
+        Data.write('subscriptions', subscriptions);
 
         // 清空changes.json
         Data.write('changes', {});
@@ -289,9 +316,37 @@ export class MCPush extends plugin {
             const historical = Data.read('historical') || {};
             const subscriptions = Data.read('subscriptions') || {};
 
+            // 获取默认配置
+            const defaultGroup = config.defaultGroup || {};
+
             // 收集需要检查的服务器
             const serversToCheck = new Map();
             for (const [groupId, groupConfig] of Object.entries(subscriptions)) {
+                // 如果是新群组，使用默认配置
+                if (!groupConfig) {
+                    subscriptions[groupId] = {
+                        enabled: defaultGroup.enabled || false,
+                        serverStatusPush: defaultGroup.serverStatusPush || false,
+                        newPlayerAlert: defaultGroup.newPlayerAlert || false,
+                        servers: {}
+                    };
+
+                    // 获取该群的服务器列表
+                    const servers = Data.getGroupData('servers', groupId);
+                    // 为所有服务器创建默认配置
+                    for (const [serverId] of Object.entries(servers)) {
+                        subscriptions[groupId].servers[serverId] = {
+                            enabled: defaultGroup.enabled || false,
+                            newPlayerAlert: defaultGroup.newPlayerAlert || false,
+                            players: []
+                        };
+                    }
+
+                    Data.write('subscriptions', subscriptions);
+                    logger.mark(`[MCTool] 已为群组 ${groupId} 创建默认推送配置，使用全局配置：${JSON.stringify(defaultGroup)}`);
+                    continue;
+                }
+
                 if (!groupConfig?.enabled) continue;
                 
                 const servers = Data.getGroupData('servers', groupId);
