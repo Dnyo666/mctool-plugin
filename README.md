@@ -38,8 +38,17 @@
 ## 安装方法
 
 1. 在 Yunzai-Bot 根目录下执行：
+
+* 使用 Github
+
 ```bash
 git clone https://github.com/Dnyo666/mctool-plugin.git ./plugins/mctool-plugin/
+```
+
+* 使用 Gitee
+
+```bash
+git clone https://gitee.com/Dnyo666/mctool-plugin.git ./plugins/mctool-plugin/
 ```
 
 2. 进入插件目录
