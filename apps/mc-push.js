@@ -40,6 +40,11 @@ export class MCPush extends plugin {
 
         logger.mark('[MCTool] 初始化推送服务...');
         
+        // 获取配置
+        const config = getConfig();
+        const { cron } = config.schedule;
+
+        
         // 确保数据文件存在
         const current = Data.read('current') || {};
         const historical = Data.read('historical') || {};
@@ -75,13 +80,19 @@ export class MCPush extends plugin {
             // 转换cron表达式为node-schedule支持的格式
             // node-schedule不支持秒级别的cron，需要特殊处理
             const second = parseInt(cronParts[0]);
+            const minute = cronParts[1].includes('*/') ? Array.from({ length: 60 / parseInt(cronParts[1].split('*/')[1]) }, (_, i) => i * parseInt(cronParts[1].split('*/')[1])) : cronParts[1].split(',').map(Number);
+            const hour = cronParts[2] === '*' ? null : cronParts[2].split(',').map(Number);
+            const date = cronParts[3] === '*' ? null : cronParts[3].split(',').map(Number);
+            const month = cronParts[4] === '*' ? null : cronParts[4].split(',').map(Number);
+            const dayOfWeek = cronParts[5] === '*' ? null : cronParts[5].split(',').map(Number);
+
             const scheduleRule = {
-                second: cronParts[0], // 秒
-                minute: cronParts[1], // 分
-                hour: cronParts[2],   // 时
-                date: cronParts[3],   // 日
-                month: cronParts[4],  // 月
-                dayOfWeek: cronParts[5] // 周
+                second: second, // 确保秒字段为整数
+                minute: minute, // 确保分钟字段为数组
+                hour: hour,     // 确保小时字段为整数或数组
+                date: date,     // 确保日期字段为整数或数组
+                month: month,   // 确保月份字段为整数或数组
+                dayOfWeek: dayOfWeek // 确保星期字段为整数或数组
             };
 
             // 创建定时任务
@@ -120,6 +131,7 @@ export class MCPush extends plugin {
                 
                 logger.mark(`[MCTool] 执行规则: ${parts.length > 0 ? parts.join('，') : '每分钟'}`);
             } else {
+                logger.error(`[MCTool] 定时任务创建失败，scheduleRule: ${JSON.stringify(scheduleRule)}`);
                 throw new Error('定时任务创建失败');
             }
         } catch (error) {
@@ -130,6 +142,7 @@ export class MCPush extends plugin {
             logger.error('  - 30 * * * * *     每分钟的第30秒执行');
             logger.error('  - 0 */5 * * * *    每5分钟的第0秒执行');
             logger.error('  - 0 0,30 * * * *   每小时的第0分和第30分的第0秒执行');
+            logger.error(`[MCTool] 错误详情: ${error.stack}`);
         }
 
         logger.mark('[MCTool] 推送服务初始化完成');
@@ -240,6 +253,7 @@ export class MCPush extends plugin {
                         logger.mark(`[MCTool] 已向群组 ${groupId} 推送启动状态检查结果`);
                     } catch (error) {
                         logger.error(`[MCTool] 向群组 ${groupId} 推送启动状态检查结果失败:`, error);
+                        logger.error(`[MCTool] 错误详情: ${error.stack}`);
                         // 如果转发失败，尝试直接发送
                         try {
                             await Bot.pickGroup(groupId).sendMsg(['机器人启动完毕，服务器状态如下：', ...messages].join('\n\n'));
@@ -255,6 +269,7 @@ export class MCPush extends plugin {
             logger.mark('[MCTool] 启动状态检查完成');
         } catch (error) {
             logger.error('[MCTool] 启动状态检查失败:', error);
+            logger.error(`[MCTool] 错误详情: ${error.stack}`);
         }
     }
 
@@ -439,6 +454,7 @@ export class MCPush extends plugin {
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 } catch (error) {
                     logger.error(`[MCTool] 处理服务器 ${serverId} 时发生错误:`, error);
+                    logger.error(`[MCTool] 错误详情: ${error.stack}`);
                 }
             }
 
@@ -456,6 +472,7 @@ export class MCPush extends plugin {
                         logger.mark(`[MCTool] 已向群组 ${groupId} 推送 ${messages.length} 条消息`);
                     } catch (error) {
                         logger.error(`[MCTool] 向群组 ${groupId} 推送消息失败:`, error);
+                        logger.error(`[MCTool] 错误详情: ${error.stack}`);
                     }
                 }
             }
@@ -463,6 +480,7 @@ export class MCPush extends plugin {
             logger.mark('[MCTool] 服务器状态检查完成');
         } catch (error) {
             logger.error('[MCTool] 服务器状态检查失败:', error);
+            logger.error(`[MCTool] 错误详情: ${error.stack}`);
         }
     }
 
@@ -568,6 +586,7 @@ export class MCPush extends plugin {
             logger.mark(`[MCTool] 向群组 ${groupId} 推送服务器 ${serverId} 状态变化`);
         } catch (error) {
             logger.error(`[MCTool] 推送状态变化失败: ${error.message}`);
+            logger.error(`[MCTool] 错误详情: ${error.stack}`);
         }
 
         // 保存当前状态
@@ -576,4 +595,4 @@ export class MCPush extends plugin {
             [serverId]: currentStatus
         });
     }
-} 
+}
