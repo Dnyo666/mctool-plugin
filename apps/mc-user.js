@@ -170,15 +170,17 @@ export class MCUser extends plugin {
 
             // 获取配置
             const config = getConfig();
-            const use3D = config.skin?.use3D ?? false;
+            const use3D = config.skin?.use3D ?? false;  // 使用skin.use3D作为3D渲染开关
 
             // 处理每个绑定账号
             const accounts = await Promise.all(userBindings.map(async (binding) => {
                 try {
                     let skinUrl;
                     if (use3D) {
-                        // 使用API渲染3D皮肤
-                        skinUrl = `http://127.0.0.1:3006/render?uuid=${binding.raw_uuid}&width=300&height=600&angle=135&angleY=45`;
+                        // 使用API渲染3D皮肤，并应用配置中的参数
+                        const width = config.skin?.render3D?.width ?? 300;
+                        const height = config.skin?.render3D?.height ?? 400;
+                        skinUrl = `http://127.0.0.1:3006/render?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=135&angleY=45`;
                     } else {
                         skinUrl = `https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`;
                     }

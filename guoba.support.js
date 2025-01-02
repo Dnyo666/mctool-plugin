@@ -94,9 +94,7 @@ skin:
   use3D: ${mergedConfig.skin?.use3D || false}  # 是否使用3D渲染
   render3D:
     width: ${mergedConfig.skin?.render3D?.width || 300}   # 渲染宽度
-    height: ${mergedConfig.skin?.render3D?.height || 400}  # 渲染高度
-    zoom: ${mergedConfig.skin?.render3D?.zoom || 0.9}    # 缩放比例
-    rotate: ${mergedConfig.skin?.render3D?.rotate || true} # 是否旋转`
+    height: ${mergedConfig.skin?.render3D?.height || 400}  # 渲染高度`
 
             fs.writeFileSync(this.configPath, content, 'utf8')
             return true

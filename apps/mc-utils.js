@@ -66,8 +66,7 @@ export function getConfig() {
                 use3D: false,
                 render3D: {
                     width: 300,
-                    height: 400,
-                    zoom: 0.9
+                    height: 400
                 }
             };
         } else {
@@ -75,16 +74,13 @@ export function getConfig() {
             if (!config.skin.render3D) {
                 config.skin.render3D = {
                     width: 300,
-                    height: 400,
-                    zoom: 0.9
+                    height: 400
                 };
             } else {
                 config.skin.render3D = {
                     ...config.skin.render3D,
                     width: config.skin.render3D.width ?? 300,
-                    height: config.skin.render3D.height ?? 400,
-                    zoom: config.skin.render3D.zoom ?? 0.9,
-                    rotate: config.skin.render3D.rotate ?? true
+                    height: config.skin.render3D.height ?? 400
                 };
             }
             config.skin.use3D = config.skin.use3D ?? false;
@@ -129,8 +125,7 @@ export function getConfig() {
                 use3D: false,
                 render3D: {
                     width: 300,
-                    height: 400,
-                    zoom: 0.9
+                    height: 400
                 }
             }
         };
