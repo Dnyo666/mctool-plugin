@@ -1,78 +1,83 @@
-import common from '../../../lib/common/common.js';
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import fs from 'fs'
+import path from 'path'
 
-export class helpApp extends plugin {
+export class Help extends plugin {
     constructor() {
         super({
             name: 'MCTool-帮助',
-            dsc: 'MC工具箱帮助',
+            dsc: '显示帮助信息',
             event: 'message',
             priority: 5000,
             rule: [
                 {
-                    reg: '^#?(mc|MC)(help|帮助|菜单)$',
-                    fnc: 'help'
+                    reg: '^#?[Mm][Cc](tool|工具)?(help|帮助|菜单)$',
+                    fnc: 'help',
+                    permission: 'all'
                 }
             ]
         });
     }
 
     async help(e) {
-        // 准备转发消息
-        const forwardMsgs = [];
+        try {
+            // 读取package.json获取版本号
+            const packagePath = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'package.json');
+            const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+            const version = packageJson.version;
 
-        // 基本信息
-        forwardMsgs.push(
-            `MC工具箱\n` +
-            `版本：V2.3\n` +
-            `作者：浅巷墨黎\n`
-        );
+            // 使用puppeteer渲染HTML
+            const htmlPath = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'resources', 'html', 'help.html');
+            const browser = await puppeteer.browserInit();
+            const page = await browser.newPage();
+            
+            // 设置视口大小
+            await page.setViewport({
+                width: 800,
+                height: 800
+            });
 
-        // 基础指令
-        forwardMsgs.push(
-            `基础指令：\n` +
-            `#mc帮助 - 显示本帮助\n` +
-            `#mc列表 - 查看服务器列表\n` +
-            `#mc在线 - 查看在线服务器及玩家列表`
-        );
+            // 读取HTML模板并替换版本号
+            let template = fs.readFileSync(htmlPath, 'utf8');
+            template = template.replace('{{version}}', version);
 
-        // 管理指令
-        forwardMsgs.push(
-            `管理指令：\n` +
-            `#mc添加 <名称> <IP:端口> [描述] - 添加服务器\n` +
-            `#mc删除 <ID> - 删除指定服务器`
-        );
+            await page.setContent(template);
 
-        // 推送设置
-        forwardMsgs.push(
-            `推送设置：\n` +
-            `#mc开启/关闭推送 [ID] - 开启或关闭推送\n` +
-            `#mc开启/关闭状态推送 [ID] - 开启或关闭服务器状态推送\n` +
-            `#mc推送玩家 <ID> <玩家名/all> - 添加玩家推送\n` +
-            `#mc开启/关闭新人推送 <ID> - 开启或关闭新玩家提醒\n` +
-            `#mc取消推送玩家 <ID> <玩家名/all> - 取消玩家推送\n` +
-            `#mc推送 - 查看当前推送配置`
-        );
+            // 确保临时目录存在
+            const tempDir = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
 
-        // 验证设置
-        forwardMsgs.push(
-            `验证设置：\n` +
-            `#mc验证 - 查看当前验证配置\n` +
-            `#mc验证 开启/关闭 - 开启或关闭验证功能\n` +
-            `#mc验证重复使用 开启/关闭 - 设置是否允许重复用户名\n` +
-            `#mc验证拒绝 开启/关闭 - 设置是否自动拒绝重复用户名\n` +
-            `#mc验证列表 - 查看已验证用户`
-        );
+            // 截图
+            const screenshotPath = path.join(tempDir, `${e.user_id}_help.png`);
+            try {
+                await page.screenshot({
+                    path: screenshotPath,
+                    fullPage: true
+                });
+            } catch (error) {
+                console.error('截图失败:', error);
+                throw error;
+            } finally {
+                await browser.close();
+            }
 
-        // 用户设置
-        forwardMsgs.push(
-            `用户设置：\n` +
-            `#mc绑定 用户名 - 绑定正版用户名\n` +
-            `#mc解绑 用户名 - 解绑正版用户名\n` +
-            `#mc信息 - 查看已绑定正版用户名uuid和皮肤`
-        );
+            // 发送图片
+            try {
+                await e.reply(segment.image(`file:///${screenshotPath}`));
+            } finally {
+                // 删除临时文件
+                if (fs.existsSync(screenshotPath)) {
+                    fs.unlinkSync(screenshotPath);
+                }
+            }
 
-        // 使用合并转发发送消息
-        const forwardMsg = await common.makeForwardMsg(e, forwardMsgs, 'MC服务器管理帮助');
-        await e.reply(forwardMsg);
+            return true;
+        } catch (error) {
+            console.error('生成帮助信息失败:', error);
+            e.reply('生成帮助信息失败，请稍后重试');
+            return false;
+        }
     }
 }

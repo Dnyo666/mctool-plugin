@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/skinview3d.bundle.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background: #f5f5f5;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        .container {
+            padding: 15px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+        .nickname {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .qq {
+            display: inline-block;
+            padding: 3px 10px;
+            font-size: 14px;
+            color: #666;
+            border: 1px solid #4a90e2;
+            border-radius: 15px;
+            background: #f8f9fa;
+        }
+        .accounts {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .account {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+        .account-header {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 5px;
+        }
+        .account-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+        .account-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .account-username {
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 3px;
+        }
+        .account-details {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .account-details div {
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .skin-preview {
+            height: 300px;
+            background: white;
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .skin-preview img {
+            height: 280px;
+            width: auto;
+        }
+        .skin-preview canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            padding-top: 5px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="nickname">{{nickname}}</div>
+            <div class="qq">QQ: {{qq}}</div>
+        </div>
+        <div class="accounts">
+            {{each accounts account}}
+            <div class="account">
+                <div class="account-header">
+                    <img class="account-avatar" src="{{account.avatarUrl}}" alt="Avatar" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                    <div class="account-info">
+                        <div class="account-username">{{account.username}}</div>
+                        <div class="account-details">
+                            <div>UUID: {{account.uuid}}</div>
+                            <div>绑定时间: {{account.bindTime}}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="skin-preview">
+                    {{if account.render3D}}
+                    <canvas data-skin-url="{{account.skinUrl}}"></canvas>
+                    {{else}}
+                    <img src="{{account.skinUrl}}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                    {{/if}}
+                </div>
+            </div>
+            {{/each}}
+        </div>
+        <div class="footer">
+            发送 #mc绑定 用户名 进行绑定
+        </div>
+    </div>
+
+    <script>
+        function initSkinViewer(canvas, skinUrl) {
+            const viewer = new skinview3d.SkinViewer({
+                canvas: canvas,
+                width: canvas.parentElement.clientWidth,
+                height: canvas.parentElement.clientHeight,
+                skin: skinUrl
+            });
+
+            // 设置相机位置和角度
+            viewer.camera.position.set(-20, 35, 40);
+            viewer.camera.lookAt(0, 0, 0);
+            
+            // 调整人物朝向
+            viewer.playerObject.rotation.y = Math.PI;
+            
+            // 渲染一帧
+            viewer.render();
+        }
+
+        // 在账号数据加载后初始化3D皮肤
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvases = document.querySelectorAll('canvas');
+            canvases.forEach(canvas => {
+                const skinUrl = canvas.getAttribute('data-skin-url');
+                if (skinUrl) {
+                    initSkinViewer(canvas, skinUrl);
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

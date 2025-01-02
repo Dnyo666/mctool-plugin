@@ -87,7 +87,16 @@ defaultGroup:
 verification:
   enabled: ${mergedConfig.verification.enabled}         # 是否默认开启验证
   expireTime: ${mergedConfig.verification.expireTime}     # 验证请求过期时间（秒）
-  maxRequests: ${mergedConfig.verification.maxRequests}        # 最大验证请求数`
+  maxRequests: ${mergedConfig.verification.maxRequests}        # 最大验证请求数
+
+# 皮肤渲染配置
+skin:
+  use3D: ${mergedConfig.skin?.use3D || false}  # 是否使用3D渲染
+  render3D:
+    width: ${mergedConfig.skin?.render3D?.width || 300}   # 渲染宽度
+    height: ${mergedConfig.skin?.render3D?.height || 400}  # 渲染高度
+    zoom: ${mergedConfig.skin?.render3D?.zoom || 0.9}    # 缩放比例
+    rotate: ${mergedConfig.skin?.render3D?.rotate || true} # 是否旋转`
 
             fs.writeFileSync(this.configPath, content, 'utf8')
             return true
@@ -420,6 +429,58 @@ export function supportGuoba() {
                         step: 1,
                         addonAfter: '次'
                     }
+                },
+                {
+                    field: 'skin',
+                    label: '皮肤渲染配置',
+                    bottomHelpMessage: '配置皮肤渲染方式',
+                    component: 'Divider'
+                },
+                {
+                    field: 'skin.use3D',
+                    label: '使用3D渲染',
+                    bottomHelpMessage: '是否使用3D渲染显示皮肤',
+                    component: 'Switch',
+                    defaultValue: false
+                },
+                {
+                    field: 'skin.render3D.width',
+                    label: '渲染宽度',
+                    bottomHelpMessage: '3D渲染的宽度',
+                    component: 'InputNumber',
+                    required: true,
+                    defaultValue: 300,
+                    componentProps: {
+                        min: 100,
+                        max: 800,
+                        step: 50
+                    }
+                },
+                {
+                    field: 'skin.render3D.height',
+                    label: '渲染高度',
+                    bottomHelpMessage: '3D渲染的高度',
+                    component: 'InputNumber',
+                    required: true,
+                    defaultValue: 400,
+                    componentProps: {
+                        min: 100,
+                        max: 1000,
+                        step: 50
+                    }
+                },
+                {
+                    field: 'skin.render3D.zoom',
+                    label: '缩放比例',
+                    bottomHelpMessage: '3D渲染的缩放比例',
+                    component: 'Slider',
+                    required: true,
+                    defaultValue: 0.9,
+                    componentProps: {
+                        min: 0.1,
+                        max: 2,
+                        step: 0.1
+                    }
                 }
             ],
             getConfigData() {
@@ -506,9 +567,27 @@ export function supportGuoba() {
                         logger.mark(`[MCTool] 处理后的cron表达式: ${data['schedule.cron']}`);
                     }
 
+                    // 获取当前配置
+                    const currentConfig = config.getConfig();
+
+                    // 更新配置
                     for (const key in data) {
-                        config.modify(...key.split('.'), data[key])
+                        const keys = key.split('.');
+                        let target = currentConfig;
+                        
+                        // 处理嵌套配置
+                        for (let i = 0; i < keys.length - 1; i++) {
+                            if (!target[keys[i]]) {
+                                target[keys[i]] = {};
+                            }
+                            target = target[keys[i]];
+                        }
+                        target[keys[keys.length - 1]] = data[key];
                     }
+
+                    // 保存配置
+                    await config.setConfig(currentConfig);
+
                     return Result.ok({}, '保存成功~')
                 } catch (err) {
                     logger.error('[MCTool] 保存配置失败:', err)

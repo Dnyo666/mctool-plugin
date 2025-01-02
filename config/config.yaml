@@ -50,3 +50,12 @@ verification:
   enabled: false         # 是否默认开启验证
   expireTime: 86400     # 验证请求过期时间（秒）
   maxRequests: 5        # 最大验证请求数
+
+# 皮肤渲染配置
+skin:
+  use3D: false  # 是否使用3D渲染
+  # 3D渲染配置
+  render3D:
+    width: 300   # 渲染宽度
+    height: 400  # 渲染高度
+    zoom: 0.9    # 缩放比例

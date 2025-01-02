@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            margin: 0;
+            background: #f5f5f5;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        .container {
+            padding: 15px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .version {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .commands {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .command-group {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .group-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #4a90e2;
+        }
+        .command-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .command-item {
+            font-size: 14px;
+            color: #333;
+        }
+        .command-name {
+            font-weight: bold;
+            color: #4a90e2;
+        }
+        .command-desc {
+            color: #666;
+            margin-top: 2px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">MCTool 帮助</div>
+            <div class="version">版本 {{version}}</div>
+        </div>
+        <div class="commands">
+            <div class="command-group">
+                <div class="group-title">用户管理</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mc绑定 用户名</div>
+                        <div class="command-desc">绑定你的Minecraft正版账号</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc解绑 用户名</div>
+                        <div class="command-desc">解绑已绑定的账号</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc信息</div>
+                        <div class="command-desc">查看你的账号绑定信息</div>
+                    </div>
+                </div>
+            </div>
+            <div class="command-group">
+                <div class="group-title">服务器管理</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mc添加 名称 ip:端口 描述</div>
+                        <div class="command-desc">添加服务器到监控列表</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc删除 服务器id</div>
+                        <div class="command-desc">从监控列表移除服务器</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc列表</div>
+                        <div class="command-desc">查看服务器状态和列表</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc在线</div>
+                        <div class="command-desc">查看在线玩家列表</div>
+                    </div>
+                </div>
+            </div>
+            <div class="command-group">
+                <div class="group-title">验证管理</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mc验证</div>
+                        <div class="command-desc">查看验证状态</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc验证 开启/关闭</div>
+                        <div class="command-desc">开启或关闭验证功能</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc验证重复使用 开启/关闭</div>
+                        <div class="command-desc">允许或禁止重复使用验证码</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc验证拒绝 开启/关闭</div>
+                        <div class="command-desc">开启或关闭拒绝验证功能</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc验证列表</div>
+                        <div class="command-desc">查看已验证玩家列表</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc验证删除 用户名</div>
+                        <div class="command-desc">删除指定用户</div>
+                    </div>
+                </div>
+            </div>
+            <div class="command-group">
+                <div class="group-title">推送管理</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mc开启/关闭推送 服务器id</div>
+                        <div class="command-desc">开启或关闭全部推送</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc开启/关闭新人推送 服务器id</div>
+                        <div class="command-desc">开启或关闭新人推送</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc开启/关闭状态推送 服务器id</div>
+                        <div class="command-desc">开启或关闭状态推送</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc推送玩家 服务器id 玩家名/all</div>
+                        <div class="command-desc">添加玩家到推送列表</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc取消推送玩家 服务器id 玩家名</div>
+                        <div class="command-desc">从推送列表移除玩家</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc推送</div>
+                        <div class="command-desc">查看推送设置</div>
+                    </div>
+                </div>
+            </div>
+            <div class="command-group">
+                <div class="group-title">其他功能</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mc帮助</div>
+                        <div class="command-desc">显示此帮助信息</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc工具更新</div>
+                        <div class="command-desc">更新插件到最新版本</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mc工具更新日志</div>
+                        <div class="command-desc">查看更新日志</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

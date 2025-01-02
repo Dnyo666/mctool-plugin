@@ -43,11 +43,52 @@ export function getConfig() {
             serverStatusPush: false,
             newPlayerAlert: false
         };
-        config.verification = config.verification || {
-            enabled: false,
-            expireTime: 86400,
-            maxRequests: 5
-        };
+
+        // 确保验证配置存在并更新
+        if (!config.verification) {
+            config.verification = {
+                enabled: false,
+                expireTime: 86400,
+                maxRequests: 5
+            };
+        } else {
+            config.verification = {
+                ...config.verification,
+                enabled: config.verification.enabled ?? false,
+                expireTime: config.verification.expireTime ?? 86400,
+                maxRequests: config.verification.maxRequests ?? 5
+            };
+        }
+
+        // 确保皮肤配置存在并更新
+        if (!config.skin) {
+            config.skin = {
+                use3D: false,
+                render3D: {
+                    width: 300,
+                    height: 400,
+                    zoom: 0.9
+                }
+            };
+        } else {
+            // 确保render3D配置完整
+            if (!config.skin.render3D) {
+                config.skin.render3D = {
+                    width: 300,
+                    height: 400,
+                    zoom: 0.9
+                };
+            } else {
+                config.skin.render3D = {
+                    ...config.skin.render3D,
+                    width: config.skin.render3D.width ?? 300,
+                    height: config.skin.render3D.height ?? 400,
+                    zoom: config.skin.render3D.zoom ?? 0.9,
+                    rotate: config.skin.render3D.rotate ?? true
+                };
+            }
+            config.skin.use3D = config.skin.use3D ?? false;
+        }
         
         // 验证配置有效性
         if (!config.schedule.cron) {
@@ -83,6 +124,14 @@ export function getConfig() {
                 enabled: false,
                 expireTime: 86400,
                 maxRequests: 5
+            },
+            skin: {
+                use3D: false,
+                render3D: {
+                    width: 300,
+                    height: 400,
+                    zoom: 0.9
+                }
             }
         };
     }
