@@ -31,34 +31,20 @@ export class Help extends plugin {
             const browser = await puppeteer.browserInit();
             const page = await browser.newPage();
             
+            // 设置视口大小
+            await page.setViewport({
+                width: 800,
+                height: 1200  // 设置一个足够大的高度
+            });
+
             // 读取HTML模板并替换版本号
             let template = fs.readFileSync(htmlPath, 'utf8');
             template = template.replace('{{version}}', version);
 
             await page.setContent(template);
 
-            // 等待所有内容加载完成
-            await page.waitForSelector('.container', { timeout: 5000 });
-
-            // 获取实际内容高度
-            const contentHeight = await page.evaluate(() => {
-                const container = document.querySelector('.container');
-                if (!container) return 800;
-                
-                // 获取实际内容高度
-                const rect = container.getBoundingClientRect();
-                // 添加一些额外的空间以确保内容完全显示
-                return Math.max(800, Math.ceil(rect.height + 50));
-            });
-
-            // 设置视口大小，确保高度足够
-            await page.setViewport({
-                width: 800,
-                height: contentHeight
-            });
-
-            // 再次等待内容重新布局
-            await page.waitForTimeout(500);
+            // 等待内容加载完成
+            await page.waitForSelector('.container');
 
             // 确保临时目录存在
             const tempDir = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'temp');
@@ -69,28 +55,10 @@ export class Help extends plugin {
             // 截图
             const screenshotPath = path.join(tempDir, `${e.user_id}_help.png`);
             try {
-                // 尝试多次截图，确保内容完整
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                    try {
-                        await page.screenshot({
-                            path: screenshotPath,
-                            fullPage: true,
-                            captureBeyondViewport: true
-                        });
-                        
-                        // 验证图片是否完整
-                        const stats = fs.statSync(screenshotPath);
-                        if (stats.size > 1000) { // 确保图片大小合理
-                            break;
-                        }
-                        
-                        // 如果图片太小，增加等待时间再试
-                        await page.waitForTimeout(500 * attempt);
-                    } catch (screenshotError) {
-                        if (attempt === 3) throw screenshotError;
-                        await page.waitForTimeout(500);
-                    }
-                }
+                await page.screenshot({
+                    path: screenshotPath,
+                    fullPage: true
+                });
             } catch (error) {
                 console.error('截图失败:', error);
                 throw error;
