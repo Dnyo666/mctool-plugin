@@ -131,7 +131,7 @@ export class MCUser extends plugin {
     /**
      * 获取玩家皮肤数据
      * @param {string} uuid 玩家UUID
-     * @returns {Promise<string>} 皮肤数据的base64字符串
+     * @returns {Promise<string>} 皮肤URL
      */
     async getSkinData(uuid) {
         try {
@@ -154,28 +154,6 @@ export class MCUser extends plugin {
     }
 
     /**
-     * 渲染3D皮肤
-     * @param {string} uuid 用户UUID
-     * @param {object} render3D 3D渲染配置
-     * @returns {Promise<string>} 渲染后的图片URL
-     */
-    async render3DSkin(uuid, render3D) {
-        try {
-            logger.info(`[MCTool] 开始渲染玩家 ${uuid} 的3D皮肤`);
-            
-            // 获取皮肤URL
-            const skinUrl = await this.getSkinData(uuid);
-            logger.info(`[MCTool] 成功获取玩家 ${uuid} 的皮肤数据: ${skinUrl}`);
-
-            // 直接返回皮肤URL，让前端处理3D渲染
-            return skinUrl;
-        } catch (error) {
-            logger.error(`[MCTool] 渲染玩家皮肤失败: ${error.message}`);
-            throw error;
-        }
-    }
-
-    /**
      * 获取用户信息
      * @param {*} e 消息事件
      */
@@ -193,20 +171,16 @@ export class MCUser extends plugin {
             // 获取配置
             const config = getConfig();
             const use3D = config.skin?.use3D ?? false;
-            const render3D = {
-                enabled: use3D,
-                width: 300,
-                height: 400
-            };
 
             // 处理每个绑定账号
             const accounts = await Promise.all(userBindings.map(async (binding) => {
                 try {
                     let skinUrl;
-                    if (render3D.enabled) {
-                        skinUrl = await this.render3DSkin(binding.raw_uuid, render3D);
+                    if (use3D) {
+                        // 使用API渲染3D皮肤
+                        skinUrl = `http://127.0.0.1:3006/render?uuid=${binding.raw_uuid}&width=300&height=600&angle=135&angleY=45`;
                     } else {
-                        skinUrl = `https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`;  // 调整2D图片尺寸
+                        skinUrl = `https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`;
                     }
                     const avatarUrl = `https://api.mineatar.io/face/${binding.raw_uuid}`;
                     return {
@@ -254,8 +228,7 @@ export class MCUser extends plugin {
             const data = {
                 qq: e.user_id,
                 nickname: e.sender.card || e.sender.nickname,
-                accounts: accounts,
-                render3D: render3D.enabled
+                accounts: accounts
             };
 
             // 使用puppeteer渲染HTML
@@ -289,31 +262,12 @@ export class MCUser extends plugin {
                             </div>
                         </div>
                         <div class="skin-preview">
-                            ${render3D.enabled ? `
-                                <canvas data-skin-url="${account.skinUrl}"></canvas>
-                            ` : `
-                                <img src="${account.skinUrl}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
-                            `}
+                            <img src="${account.skinUrl}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
                         </div>
                     </div>
                 `).join(''));
 
             await page.setContent(template);
-            
-            // 如果启用了3D渲染，等待渲染完成
-            if (render3D.enabled) {
-                try {
-                    // 等待渲染完成
-                    await page.waitForFunction(() => {
-                        const canvases = document.querySelectorAll('canvas');
-                        return Array.from(canvases).every(canvas => 
-                            canvas.width > 0 && canvas.height > 0
-                        );
-                    }, { timeout: 5000 });
-                } catch (error) {
-                    logger.error(`[MCTool] 3D渲染等待超时: ${error.message}`);
-                }
-            }
 
             // 确保临时目录存在
             const tempDir = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'temp');

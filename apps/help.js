@@ -34,7 +34,7 @@ export class Help extends plugin {
             // 设置视口大小
             await page.setViewport({
                 width: 800,
-                height: 1200  // 设置一个足够大的高度
+                height: 800  // 设置一个足够大的高度
             });
 
             // 读取HTML模板并替换版本号
