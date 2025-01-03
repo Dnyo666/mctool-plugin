@@ -31,6 +31,15 @@ export class MCUser extends plugin {
                     reg: '^#?[Mm][Cc]渲染状态$',
                     fnc: 'checkRenderStatus',
                     permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc]头像\\s*(全身|半身|头部)?\\s*(.+)?$',
+                    fnc: 'generateAvatar',
+                    permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc]头像服务状态$',
+                    fnc: 'checkAvatarService'
                 }
             ]
         });
@@ -408,6 +417,156 @@ export class MCUser extends plugin {
         } catch (error) {
             logger.error(`[MCTool] 检查渲染状态失败: ${error.message}`);
             e.reply('检查渲染状态失败');
+            return false;
+        }
+    }
+
+    /**
+     * 生成玩家头像
+     * @param {*} e 消息事件
+     */
+    async generateAvatar(e) {
+        try {
+            const type = e.msg.match(/^#?[Mm][Cc]头像\s*(全身|半身|头部)?/)[1] || '头部';
+            const username = e.msg.match(/^#?[Mm][Cc]头像\s*(全身|半身|头部)?\s*(.+)?$/)?.[2]?.trim();
+
+            // 获取要处理的用户列表
+            let users = [];
+            if (username) {
+                // 如果指定了用户名，直接使用
+                users.push({ username });
+            } else {
+                // 否则获取所有绑定的用户
+                const bindings = Data.read('user_bindings') || {};
+                const userBindings = bindings[e.user_id];
+                if (!userBindings || userBindings.length === 0) {
+                    e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 <用户名> 进行绑定');
+                    return false;
+                }
+                users = userBindings;
+            }
+
+            // 转换类型为API参数
+            const avatarType = {
+                '全身': 'full',
+                '半身': 'head',
+                '头部': 'big_head'
+            }[type];
+
+            // 处理每个用户
+            for (const user of users) {
+                try {
+                    logger.info(`[MCTool] 正在生成 ${user.username} 的${type}图像...`);
+                    
+                    // 构建请求URL
+                    const url = `https://mcacg.qxml.ltd/generate/account?player=${encodeURIComponent(user.username)}&avatar_type=${encodeURIComponent(avatarType)}`;
+                    logger.info(`[MCTool] 发送请求: ${url}`);
+
+                    // 发送生成请求
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    // 记录响应状态
+                    logger.info(`[MCTool] API响应状态: ${response.status} ${response.statusText}`);
+
+                    if (!response.ok) {
+                        const errorText = await response.text().catch(() => '无法获取错误详情');
+                        logger.error(`[MCTool] API错误响应: ${errorText}`);
+                        throw new Error(`生成失败: ${response.status} ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    logger.info(`[MCTool] API响应数据: ${JSON.stringify(result)}`);
+
+                    if (!result.success) {
+                        throw new Error(result.message || '生成失败: API返回失败状态');
+                    }
+
+                    if (!result.data?.image) {
+                        throw new Error('生成失败: API返回数据缺少图片信息');
+                    }
+
+                    // 将Base64转换为图片并发送
+                    const base64Data = result.data.image;
+                    // 检查base64数据是否有效
+                    if (!base64Data.match(/^[A-Za-z0-9+/=]+$/)) {
+                        throw new Error('生成失败: 无效的图片数据');
+                    }
+
+                    const imageData = Buffer.from(base64Data, 'base64');
+                    if (imageData.length === 0) {
+                        throw new Error('生成失败: 图片数据为空');
+                    }
+
+                    // 确保临时目录存在
+                    const tempDir = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'temp');
+                    if (!fs.existsSync(tempDir)) {
+                        fs.mkdirSync(tempDir, { recursive: true });
+                    }
+
+                    // 保存为临时文件
+                    const tempFile = path.join(tempDir, `${user.username}_${type}_${Date.now()}.png`);
+                    fs.writeFileSync(tempFile, imageData);
+
+                    // 检查生成的文件
+                    const fileStats = fs.statSync(tempFile);
+                    if (fileStats.size === 0) {
+                        throw new Error('生成失败: 生成的图片文件为空');
+                    }
+
+                    logger.info(`[MCTool] 成功生成图片: ${tempFile} (${fileStats.size} 字节)`);
+
+                    // 发送图片
+                    await e.reply([
+                        `${user.username} 的${type}图像：\n`,
+                        segment.image(`file:///${tempFile}`)
+                    ]);
+
+                    // 删除临时文件
+                    fs.unlinkSync(tempFile);
+                } catch (error) {
+                    logger.error(`[MCTool] 生成 ${user.username} 的头像失败:`, error);
+                    e.reply(`生成 ${user.username} 的头像失败: ${error.message}`);
+                }
+            }
+
+            return true;
+        } catch (error) {
+            logger.error('[MCTool] 生成头像失败:', error);
+            e.reply('生成头像失败，请稍后重试');
+            return false;
+        }
+    }
+
+    /**
+     * 检查头像服务状态
+     * @param {*} e 消息事件
+     */
+    async checkAvatarService(e) {
+        try {
+            logger.info('[MCTool] 正在检查头像服务状态...');
+            
+            const response = await fetch('https://mcacg.qxml.ltd/docs', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/html'
+                }
+            });
+
+            if (response.ok) {
+                e.reply('头像服务运行正常');
+                return true;
+            } else {
+                e.reply('头像服务异常');
+                return false;
+            }
+        } catch (error) {
+            logger.error('[MCTool] 检查头像服务状态失败:', error);
+            e.reply('头像服务连接失败');
             return false;
         }
     }
