@@ -26,6 +26,11 @@ export class MCUser extends plugin {
                     reg: '^#?[Mm][Cc]信息$',
                     fnc: 'getUserInfo',
                     permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc]渲染状态$',
+                    fnc: 'checkRenderStatus',
+                    permission: 'all'
                 }
             ]
         });
@@ -363,6 +368,46 @@ export class MCUser extends plugin {
         } catch (error) {
             logger.error(`[MCTool] 生成用户信息失败: ${error.message}`);
             e.reply('生成用户信息失败，请稍后重试');
+            return false;
+        }
+    }
+
+    /**
+     * 检查3D渲染服务状态
+     * @param {*} e 消息事件
+     */
+    async checkRenderStatus(e) {
+        try {
+            // 获取配置
+            const config = getConfig();
+            const use3D = config.skin?.use3D ?? false;
+
+            if (!use3D) {
+                e.reply('3D渲染服务当前未启用');
+                return false;
+            }
+
+            const server = config.skin?.server || 'http://127.0.0.1:3006';
+
+            try {
+                // 检查健康状态
+                const healthResponse = await fetch(`${server}/health`);
+                const healthData = await healthResponse.json();
+
+                if (!healthResponse.ok || healthData?.status !== 'ok') {
+                    e.reply('3D渲染服务状态异常');
+                    return false;
+                }
+
+                e.reply('3D渲染服务运行正常');
+                return true;
+            } catch (error) {
+                e.reply('3D渲染服务连接失败');
+                return false;
+            }
+        } catch (error) {
+            logger.error(`[MCTool] 检查渲染状态失败: ${error.message}`);
+            e.reply('检查渲染状态失败');
             return false;
         }
     }
