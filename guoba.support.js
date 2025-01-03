@@ -7,9 +7,13 @@ import lodash from 'lodash'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// 基础路径
+const PLUGIN_DIR = path.join(__dirname)  // 插件根目录
+const CONFIG_FILE = path.join(PLUGIN_DIR, 'config', 'config.yaml')  // 配置文件路径
+
 class Config {
     constructor() {
-        this.configPath = path.join(__dirname, 'config', 'config.yaml')
+        this.configPath = CONFIG_FILE
     }
 
     getConfig() {
@@ -92,9 +96,10 @@ verification:
 # 皮肤渲染配置
 skin:
   use3D: ${mergedConfig.skin?.use3D || false}  # 是否使用3D渲染
-  render3D:
-    width: ${mergedConfig.skin?.render3D?.width || 300}   # 渲染宽度
-    height: ${mergedConfig.skin?.render3D?.height || 400}  # 渲染高度`
+  server: ${mergedConfig.skin?.server || 'http://127.0.0.1:3006'}  # 渲染服务器地址
+  endpoint: ${mergedConfig.skin?.endpoint || '/render'}  # 渲染接口路径
+  width: ${mergedConfig.skin?.width || 300}   # 渲染宽度
+  height: ${mergedConfig.skin?.height || 600}  # 渲染高度`
 
             fs.writeFileSync(this.configPath, content, 'utf8')
             return true
@@ -140,6 +145,13 @@ skin:
                 enabled: false,
                 expireTime: 86400,
                 maxRequests: 5
+            },
+            skin: {
+                use3D: false,
+                server: 'http://127.0.0.1:3006',
+                endpoint: '/render',
+                width: 300,
+                height: 600
             }
         }
     }
@@ -165,9 +177,9 @@ export function supportGuoba() {
             link: 'https://github.com/Dnyo666/mctool-plugin',
             isV3: true,
             isV2: false,
-            description: 'Minecraft服务器状态查询、玩家绑定、进群验证等功能',
-            icon: 'arcticons:minecraft-alt-2',
-            iconColor: '#7CB342'
+            description: '基于 Yunzai-Bot v3 的 Minecraft 服务器管理插件',
+            icon: 'mdi:minecraft',
+            iconColor: '#7CBA3B'
         },
         configInfo: {
             schemas: [
@@ -429,38 +441,49 @@ export function supportGuoba() {
                     }
                 },
                 {
-                    field: 'skin',
+                    component: 'Divider',
                     label: '皮肤渲染配置',
-                    bottomHelpMessage: '配置皮肤渲染方式',
-                    component: 'Divider'
+                    componentProps: {
+                        orientation: 'left',
+                        plain: true
+                    }
                 },
                 {
                     field: 'skin.use3D',
-                    label: '使用3D渲染',
-                    bottomHelpMessage: '是否使用3D渲染显示皮肤',
+                    label: '3D渲染',
+                    bottomHelpMessage: '是否使用3D渲染（需要配置渲染服务器）',
                     component: 'Switch',
                     defaultValue: false
                 },
                 {
-                    field: 'skin.render3D.width',
-                    label: '渲染宽度',
-                    bottomHelpMessage: '3D渲染的宽度',
-                    component: 'InputNumber',
-                    required: true,
-                    defaultValue: 300,
+                    field: 'skin.server',
+                    label: '渲染服务器',
+                    bottomHelpMessage: '3D渲染服务器地址',
+                    component: 'Input',
+                    required: false,
+                    defaultValue: 'http://127.0.0.1:3006',
                     componentProps: {
-                        min: 100,
-                        max: 800,
-                        step: 50
+                        placeholder: 'http://127.0.0.1:3006'
                     }
                 },
                 {
-                    field: 'skin.render3D.height',
-                    label: '渲染高度',
-                    bottomHelpMessage: '3D渲染的高度',
+                    field: 'skin.endpoint',
+                    label: '渲染接口',
+                    bottomHelpMessage: '渲染服务器的接口路径',
+                    component: 'Input',
+                    required: false,
+                    defaultValue: '/render',
+                    componentProps: {
+                        placeholder: '/render'
+                    }
+                },
+                {
+                    field: 'skin.width',
+                    label: '渲染宽度',
+                    bottomHelpMessage: '3D渲染图像宽度',
                     component: 'InputNumber',
-                    required: true,
-                    defaultValue: 400,
+                    required: false,
+                    defaultValue: 300,
                     componentProps: {
                         min: 100,
                         max: 1000,
@@ -468,16 +491,16 @@ export function supportGuoba() {
                     }
                 },
                 {
-                    field: 'skin.render3D.zoom',
-                    label: '缩放比例',
-                    bottomHelpMessage: '3D渲染的缩放比例',
-                    component: 'Slider',
-                    required: true,
-                    defaultValue: 0.9,
+                    field: 'skin.height',
+                    label: '渲染高度',
+                    bottomHelpMessage: '3D渲染图像高度',
+                    component: 'InputNumber',
+                    required: false,
+                    defaultValue: 600,
                     componentProps: {
-                        min: 0.1,
-                        max: 2,
-                        step: 0.1
+                        min: 100,
+                        max: 1000,
+                        step: 50
                     }
                 }
             ],
@@ -529,7 +552,7 @@ export function supportGuoba() {
                             
                             // 检查基本格式
                             if (!patterns[field].test(part)) {
-                                logger.warn(`[MCTool] ${field}字段格式错误：${part}，使用默认值`)
+                                logger.info(`[MCTool] ${field}字段格式错误：${part}，使用默认值`)
                                 parts[i] = defaultParts[i]
                                 continue
                             }
@@ -554,7 +577,7 @@ export function supportGuoba() {
 
                                 // 如果值超出范围，使用默认值
                                 if (hasInvalidValue) {
-                                    logger.warn(`[MCTool] ${field}字段值超出范围：${part}，使用默认值`)
+                                    logger.info(`[MCTool] ${field}字段值超出范围：${part}，使用默认值`)
                                     parts[i] = defaultParts[i]
                                 }
                             }
@@ -562,36 +585,108 @@ export function supportGuoba() {
 
                         // 保存标准化后的表达式
                         data['schedule.cron'] = parts.join(' ')
-                        logger.mark(`[MCTool] 处理后的cron表达式: ${data['schedule.cron']}`);
+                        logger.info(`[MCTool] 处理后的cron表达式: ${data['schedule.cron']}`)
                     }
 
                     // 获取当前配置
-                    const currentConfig = config.getConfig();
+                    const currentConfig = config.getConfig()
+
+                    // 处理皮肤渲染配置
+                    if (data.skin) {
+                        // 获取当前配置中的皮肤配置
+                        const currentSkin = {
+                            use3D: data.skin.use3D ?? false,  // 是否使用3D渲染
+                            server: data.skin.server || 'http://127.0.0.1:3006',  // 3D渲染服务器地址
+                            endpoint: data.skin.endpoint || '/render',  // 渲染接口路径
+                            width: data.skin.width || 300,   // 渲染宽度
+                            height: data.skin.height || 600  // 渲染高度
+                        }
+
+                        // 更新到主配置
+                        currentConfig.skin = currentSkin
+
+                        // 删除data.skin，因为我们已经手动处理了
+                        delete data.skin
+                    }
 
                     // 更新配置
                     for (const key in data) {
-                        const keys = key.split('.');
-                        let target = currentConfig;
+                        const keys = key.split('.')
+                        let target = currentConfig
                         
                         // 处理嵌套配置
                         for (let i = 0; i < keys.length - 1; i++) {
                             if (!target[keys[i]]) {
-                                target[keys[i]] = {};
+                                target[keys[i]] = {}
                             }
-                            target = target[keys[i]];
+                            target = target[keys[i]]
                         }
-                        target[keys[keys.length - 1]] = data[key];
+                        target[keys[keys.length - 1]] = data[key]
                     }
 
                     // 保存配置
-                    await config.setConfig(currentConfig);
+                    try {
+                        // 生成配置文件内容
+                        const content = `# 不知道的不要乱改
 
-                    return Result.ok({}, '保存成功~')
+# API配置
+apis:
+  - name: ${currentConfig.apis[0].name}
+    url: ${currentConfig.apis[0].url}
+    timeout: ${currentConfig.apis[0].timeout}  # 超时时间（秒）
+    maxRetries: ${currentConfig.apis[0].maxRetries}  # 最大重试次数
+    retryDelay: ${currentConfig.apis[0].retryDelay}  # 重试延迟（毫秒）
+    parser:  # 解析配置
+      online: ${currentConfig.apis[0].parser.online}  # 在线状态字段
+      players:  # 玩家相关字段
+        online: ${currentConfig.apis[0].parser.players.online}  # 在线人数字段
+        max: ${currentConfig.apis[0].parser.players.max}  # 最大人数字段
+        list: ${currentConfig.apis[0].parser.players.list}  # 玩家列表字段
+      version: ${currentConfig.apis[0].parser.version}  # 版本字段
+      motd: ${currentConfig.apis[0].parser.motd}  # MOTD字段
+
+# 定时任务配置
+schedule:
+  cron: "${currentConfig.schedule.cron}"  # 每分钟的第30秒执行
+  startupNotify: ${currentConfig.schedule.startupNotify}   # 是否在机器人启动时发送服务器状态推送
+  retryDelay: ${currentConfig.schedule.retryDelay}      # 重试等待时间（毫秒）
+
+# 数据存储路径
+dataPath: ${currentConfig.dataPath}
+
+# 默认群组推送配置
+defaultGroup:
+  enabled: ${currentConfig.defaultGroup.enabled}          # 是否默认开启功能
+  serverStatusPush: ${currentConfig.defaultGroup.serverStatusPush} # 是否默认开启服务器状态推送
+  newPlayerAlert: ${currentConfig.defaultGroup.newPlayerAlert}   # 是否默认开启新玩家提醒
+
+# 验证配置
+verification:
+  enabled: ${currentConfig.verification.enabled}         # 是否默认开启验证
+  expireTime: ${currentConfig.verification.expireTime}     # 验证请求过期时间（秒）
+  maxRequests: ${currentConfig.verification.maxRequests}        # 最大验证请求数
+
+# 皮肤渲染配置
+skin:
+  use3D: ${currentConfig.skin.use3D}  # 是否使用3D渲染
+  server: ${currentConfig.skin.server}  # 3D渲染服务器地址
+  endpoint: ${currentConfig.skin.endpoint}  # 渲染接口路径
+  width: ${currentConfig.skin.width}   # 渲染宽度
+  height: ${currentConfig.skin.height}  # 渲染高度`
+
+                        // 写入文件
+                        fs.writeFileSync(CONFIG_FILE, content)
+                        return Result.ok({}, '保存成功~')
+                    } catch (err) {
+                        logger.error(`[MCTool] 保存配置失败: ${err.message}`)
+                        return Result.error(`保存失败：${err.message}`)
+                    }
                 } catch (err) {
-                    logger.error('[MCTool] 保存配置失败:', err)
+                    logger.error(`[MCTool] 保存配置失败: ${err.message}`)
                     return Result.error(`保存失败：${err.message}`)
                 }
             }
         }
     }
 }
+

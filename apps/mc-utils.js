@@ -65,38 +65,65 @@ export function getConfig() {
             config.skin = {
                 use3D: false,
                 render3D: {
+                    server: 'http://127.0.0.1:3006',
+                    endpoint: '/render',
                     width: 300,
-                    height: 400
+                    height: 600
                 }
             };
         } else {
-            // 确保render3D配置完整
+            // 确保use3D存在
+            config.skin.use3D = config.skin.use3D ?? false;
+            
+            // 确保render3D对象存在
             if (!config.skin.render3D) {
                 config.skin.render3D = {
+                    server: 'http://127.0.0.1:3006',
+                    endpoint: '/render',
                     width: 300,
-                    height: 400
+                    height: 600
                 };
             } else {
+                // 确保所有必需的属性都存在
+                const defaultRender3D = {
+                    server: 'http://127.0.0.1:3006',
+                    endpoint: '/render',
+                    width: 300,
+                    height: 600
+                };
+                
+                // 使用默认值填充缺失的属性
                 config.skin.render3D = {
-                    ...config.skin.render3D,
-                    width: config.skin.render3D.width ?? 300,
-                    height: config.skin.render3D.height ?? 400
+                    ...defaultRender3D,
+                    ...config.skin.render3D
                 };
             }
-            config.skin.use3D = config.skin.use3D ?? false;
         }
+
+        // 如果配置发生变化，保存回文件
+        let needsSave = false;
+        const originalConfig = fs.existsSync(configPath) ? YAML.parse(fs.readFileSync(configPath, 'utf8')) : {};
         
+        if (JSON.stringify(originalConfig) !== JSON.stringify(config)) {
+            try {
+                fs.writeFileSync(configPath, YAML.stringify(config, null, 2));
+                logger.info(`[MCTool] 配置文件已更新`);
+            } catch (error) {
+                logger.error(`[MCTool] 更新配置文件失败: ${error}`);
+            }
+        }
+
         // 验证配置有效性
         if (!config.schedule.cron) {
-            logger.warn('[MCTool] 未配置定时任务cron表达式，使用默认值: 30 * * * * *');
+            logger.info(`[MCTool] 未配置定时任务cron表达式，使用默认值: 30 * * * * *`);
             config.schedule.cron = '30 * * * * *';
         }
         if (!config.schedule.retryDelay || config.schedule.retryDelay < 1000) {
-            logger.warn('[MCTool] 重试等待时间配置无效，使用默认值: 5000ms');
+            logger.info(`[MCTool] 重试等待时间配置无效，使用默认值: 5000ms`);
             config.schedule.retryDelay = 5000;
         }
         if (!config.apis.length) {
-            logger.warn('[MCTool] 未配置API，请检查配置文件');
+            logger.info(`[MCTool] 未配置API，请检查配置文件`);
         }
 
         return config;
@@ -124,8 +151,10 @@ export function getConfig() {
             skin: {
                 use3D: false,
                 render3D: {
+                    server: 'http://127.0.0.1:3006',
+                    endpoint: '/render',
                     width: 300,
-                    height: 400
+                    height: 600
                 }
             }
         };

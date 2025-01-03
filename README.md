@@ -114,9 +114,13 @@ pnpm install
 
 ## 配置说明
 
+> 推荐使用锅巴面板进行可视化配置，更加直观和便捷。
+
 配置文件位于 `plugins/mctool-plugin/config/config.yaml`，包含以下配置项：
 
-### API配置
+<details>
+<summary>API配置</summary>
+
 ```yaml
 apis:
   - name: mcsrvstat
@@ -147,35 +151,76 @@ apis:
       version: version.name_clean
       motd: motd.clean[]
 ```
+</details>
 
-### 定时任务配置
+<details>
+<summary>定时任务配置</summary>
+
 ```yaml
 schedule:
   cron: "30 * * * * *"  # 每分钟的第30秒执行
   startupNotify: true   # 是否在机器人启动时发送服务器状态推送
   retryDelay: 5000      # 重试等待时间（毫秒）
 ```
+</details>
 
-### 数据存储配置
+<details>
+<summary>数据存储配置</summary>
+
 ```yaml
 dataPath: data/mctool  # 数据存储路径
 ```
+</details>
 
-### 默认群组配置
+<details>
+<summary>默认群组配置</summary>
+
 ```yaml
 defaultGroup:
   enabled: false        # 是否默认开启功能
   serverStatusPush: false  # 是否默认开启服务器状态推送
   newPlayerAlert: false    # 是否默认开启新玩家提醒
 ```
+</details>
 
-### 验证配置
+<details>
+<summary>验证配置</summary>
+
 ```yaml
 verification:
   enabled: false        # 是否默认开启验证
   expireTime: 86400     # 验证请求过期时间（秒）
   maxRequests: 5        # 最大验证请求数
 ```
+</details>
+
+<details>
+<summary>皮肤渲染配置</summary>
+
+```yaml
+skin:
+  use3D: true  # 是否使用3D渲染
+  render3D:
+    server: "http://127.0.0.1:3006"  # 3D渲染服务器地址
+    endpoint: "/render"  # 渲染接口路径
+    width: 300   # 渲染宽度
+    height: 600  # 渲染高度
+    angle: 135   # 水平旋转角度(0-360)
+    angleY: 45   # 垂直旋转角度(0-90)
+```
+</details>
+
+## 3D渲染接口部署
+
+> 3D渲染原项目（不支持api）：https://github.com/bs-community/skinview3d
+
+ 项目地址：https://github.com/Dnyo666/skinview3d-api
+ 
+ **注意：** 
+ 
+ 1. 目前只测试了Windows环境，其他环境未测试
+ 2. 部署时需要修改config.yaml中的server和endpoint
+ 3. 默认端口为3006，可根据项目内文档进行更改，同时请注意插件内配置
 
 ## 注意事项
 

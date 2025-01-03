@@ -170,24 +170,80 @@ export class MCUser extends plugin {
 
             // 获取配置
             const config = getConfig();
-            const use3D = config.skin?.use3D ?? false;  // 使用skin.use3D作为3D渲染开关
+            const use3D = config.skin?.use3D ?? false;
+
+            let use2DFallback = false;  // 标记是否需要切换到2D渲染
+            let renderError = '';  // 记录渲染错误信息
+
+            // 如果启用了3D渲染，先检查服务是否在线
+            if (use3D) {
+                const server = config.skin?.server || 'http://127.0.0.1:3006';
+                try {
+                    const healthResponse = await fetch(`${server}/health`);
+                    const healthData = await healthResponse.json();
+                    
+                    if (!healthResponse.ok || healthData?.status !== 'ok') {
+                        use2DFallback = true;
+                        renderError = '渲染服务状态异常';
+                    } else {
+                        // 只在服务正常时发送一次渲染提示
+                        await e.reply('正在生成3D渲染图像，请耐心等待...');
+                    }
+                } catch (error) {
+                    use2DFallback = true;
+                    renderError = error.message;
+                }
+
+                // 如果需要切换到2D渲染，发送一次提示
+                if (use2DFallback) {
+                    await e.reply(`3D渲染服务异常: ${renderError}，已切换至2D渲染`);
+                }
+            }
 
             // 处理每个绑定账号
             const accounts = await Promise.all(userBindings.map(async (binding) => {
                 try {
                     let skinUrl;
-                    if (use3D) {
+                    if (use3D && !use2DFallback) {
                         // 使用API渲染3D皮肤，并应用配置中的参数
-                        const width = config.skin?.render3D?.width ?? 300;
-                        const height = config.skin?.render3D?.height ?? 400;
-                        skinUrl = `http://127.0.0.1:3006/render?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=135&angleY=45`;
+                        const server = config.skin?.server || 'http://127.0.0.1:3006';
+                        const endpoint = config.skin?.endpoint || '/render';
+                        const width = config.skin?.width || 300;
+                        const height = config.skin?.height || 600;
+                        
+                        try {
+                            // 第一个角度的渲染URL（正面135度）
+                            const render3DUrl1 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=135&angleY=38`;
+                            // 第二个角度的渲染URL（背面315度）
+                            const render3DUrl2 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=315&angleY=38`;
+
+                            // 并行请求两个渲染
+                            const [response1, response2] = await Promise.race([
+                                Promise.all([
+                                    fetch(render3DUrl1),
+                                    fetch(render3DUrl2)
+                                ]),
+                                new Promise((_, reject) => 
+                                    setTimeout(() => reject(new Error('3D渲染超时，可能是皮肤过多')), 30000)
+                                )
+                            ]);
+                            
+                            if (response1.ok && response2.ok) {
+                                skinUrl = [render3DUrl1, render3DUrl2];
+                            } else {
+                                throw new Error('3D渲染失败');
+                            }
+                        } catch (error) {
+                            logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
+                            skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
+                        }
                     } else {
-                        skinUrl = `https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`;
+                        skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
                     }
                     const avatarUrl = `https://api.mineatar.io/face/${binding.raw_uuid}`;
                     return {
                         ...binding,
-                        skinUrl,
+                        skinUrl: Array.isArray(skinUrl) ? skinUrl : [skinUrl],
                         avatarUrl,
                         bindTime: new Date(binding.bindTime).toLocaleString('zh-CN', {
                             year: 'numeric',
@@ -200,10 +256,10 @@ export class MCUser extends plugin {
                         })
                     };
                 } catch (error) {
-                    logger.error(`[MCTool] 处理账号 ${binding.username} 失败: ${error.message}`);
+                    logger.info(`[MCTool] 处理账号 ${binding.username} 失败: ${error.message}`);
                     return {
                         ...binding,
-                        skinUrl: `https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`,
+                        skinUrl: [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`],
                         avatarUrl: `https://api.mineatar.io/face/${binding.raw_uuid}`,
                         bindTime: new Date(binding.bindTime).toLocaleString('zh-CN', {
                             year: 'numeric',
@@ -264,7 +320,9 @@ export class MCUser extends plugin {
                             </div>
                         </div>
                         <div class="skin-preview">
-                            <img src="${account.skinUrl}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                            ${account.skinUrl.map(url => `
+                                <img src="${url}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                            `).join('')}
                         </div>
                     </div>
                 `).join(''));
