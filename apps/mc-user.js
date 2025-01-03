@@ -391,9 +391,11 @@ export class MCUser extends plugin {
             
             // 检查3D渲染状态
             let render3DStatus = '未启用';
+            let render3DServer = '';
             if (skin.use3D) {
                 try {
                     const server = skin.render3D?.server || 'http://127.0.0.1:3006';
+                    render3DServer = server;
                     const healthResponse = await fetch(`${server}/health`);
                     const healthData = await healthResponse.json();
                     
@@ -425,13 +427,30 @@ export class MCUser extends plugin {
                 logger.error('[MCTool] 检查头像服务状态失败:', error);
                 avatarStatus = '连接失败';
             }
+
+            // 检查公用3D渲染API状态
+            let publicRender3DStatus = '异常';
+            try {
+                const response = await fetch('http://skin.qxml.ltd/health');
+                const data = await response.json();
+                
+                if (response.ok && data?.status === 'ok') {
+                    publicRender3DStatus = '运行正常';
+                }
+            } catch (error) {
+                logger.error('[MCTool] 检查公用3D渲染API状态失败:', error);
+                publicRender3DStatus = '连接失败';
+            }
             
             // 发送状态信息
-            e.reply([
+            const message = [
                 '服务状态检查结果：\n',
-                `3D渲染服务：${render3DStatus}\n`,
-                `公用头像服务：${avatarStatus}`
-            ].join(''));
+                `3D渲染服务：${render3DStatus}${render3DServer ? ` (${render3DServer})` : ''}\n`,
+                `公用头像服务：${avatarStatus}\n`,
+                `公用3D渲染：${publicRender3DStatus} (http://skin.qxml.ltd)`
+            ].join('');
+            
+            e.reply(message);
             
             return true;
         } catch (error) {
@@ -473,6 +492,7 @@ export class MCUser extends plugin {
                 '半身': 'big_head'
             }[type];
 
+            let hasError = false;
             // 处理每个用户
             for (const user of users) {
                 try {
@@ -549,9 +569,16 @@ export class MCUser extends plugin {
                     // 删除临时文件
                     fs.unlinkSync(tempFile);
                 } catch (error) {
+                    hasError = true;
                     logger.error(`[MCTool] 生成 ${user.username} 的头像失败:`, error);
-                    e.reply(`生成 ${user.username} 的头像失败: ${error.message}`);
+                    // 不再立即发送错误消息，而是继续处理其他用户
+                    continue;
                 }
+            }
+
+            // 如果所有用户都处理失败，才发送一次错误消息
+            if (hasError && users.length === 1) {
+                e.reply('获取头像失败，请稍后重试');
             }
 
             return true;

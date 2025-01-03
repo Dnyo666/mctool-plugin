@@ -55,7 +55,7 @@ verification:
 skin:
   use3D: false  # 是否使用3D渲染
   render3D:
-    server: "http://127.0.0.1:3006"  # 3D渲染服务器地址
+    server: "http://127.0.0.1:3006"  # 3D渲染服务器地址 公共API：http://skin.qxml.ltd/
     endpoint: "/render"  # 渲染接口路径
     width: 300   # 渲染宽度
     height: 600  # 渲染高度

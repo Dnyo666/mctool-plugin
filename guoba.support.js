@@ -458,7 +458,7 @@ export function supportGuoba() {
                 {
                     field: 'skin.server',
                     label: '渲染服务器',
-                    bottomHelpMessage: '3D渲染服务器地址',
+                    bottomHelpMessage: '3D渲染服务器地址，公用API：http://skin.qxml.ltd',
                     component: 'Input',
                     required: false,
                     defaultValue: 'http://127.0.0.1:3006',
