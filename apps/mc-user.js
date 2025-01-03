@@ -386,14 +386,14 @@ export class MCUser extends plugin {
             logger.info('[MCTool] 正在检查服务状态...');
             
             // 获取配置
-            const config = Config.getConfig();
+            const config = getConfig();
             const skin = config?.skin || {};
             
             // 检查3D渲染状态
             let render3DStatus = '未启用';
             if (skin.use3D) {
                 try {
-                    const server = skin.server || 'http://127.0.0.1:3006';
+                    const server = skin.render3D?.server || 'http://127.0.0.1:3006';
                     const healthResponse = await fetch(`${server}/health`);
                     const healthData = await healthResponse.json();
                     
@@ -469,8 +469,8 @@ export class MCUser extends plugin {
             // 转换类型为API参数
             const avatarType = {
                 '全身': 'full',
-                '半身': 'head',
-                '头部': 'big_head'
+                '头部': 'head',
+                '半身': 'big_head'
             }[type];
 
             // 处理每个用户
