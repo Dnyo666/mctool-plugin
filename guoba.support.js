@@ -177,8 +177,8 @@ export function supportGuoba() {
             link: 'https://github.com/Dnyo666/mctool-plugin',
             isV3: true,
             isV2: false,
-            description: '基于 Yunzai-Bot v3 的 Minecraft 服务器管理插件',
-            icon: 'mdi:minecraft',
+            description: 'Minecraft服务器状态查询、玩家绑定、进群验证等功能',
+            icon: 'arcticons:minecraft-alt-2',
             iconColor: '#7CBA3B'
         },
         configInfo: {
