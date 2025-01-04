@@ -243,7 +243,7 @@ export class MCUser extends plugin {
                             } else {
                                 throw new Error('3D渲染失败');
                             }
-                        } catch (error) {
+                    } catch (error) {
                             logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
                             skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
                         }
@@ -384,7 +384,7 @@ export class MCUser extends plugin {
     async checkServiceStatus(e) {
         try {
             logger.info('[MCTool] 正在检查服务状态...');
-            
+
             // 获取配置
             const config = getConfig();
             const skin = config?.skin || {};
@@ -401,7 +401,7 @@ export class MCUser extends plugin {
                     
                     if (!healthResponse.ok || healthData?.status !== 'ok') {
                         render3DStatus = '状态异常';
-                    } else {
+                        } else {
                         render3DStatus = '运行正常';
                     }
                 } catch (error) {

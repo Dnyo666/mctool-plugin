@@ -133,6 +133,23 @@ skin:
                         version: 'version.name_clean',
                         motd: 'motd.clean[]'
                     }
+                },
+                {
+                    name: 'mcstatus',
+                    url: 'https://api.mcstatus.io/v2/status/java/{host}:{port}',
+                    timeout: 30,
+                    maxRetries: 3,
+                    retryDelay: 1000,
+                    parser: {
+                        online: 'online',
+                        players: {
+                            online: 'players.online',
+                            max: 'players.max',
+                            list: 'players.list[].name_clean'
+                        },
+                        version: 'version.name_clean',
+                        motd: 'motd.clean[]'
+                    }
                 }
             ],
             dataPath: 'data/mctool',

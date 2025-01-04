@@ -13,9 +13,38 @@ const __dirname = path.dirname(__filename)
 const YUNZAI_DIR = path.join(__dirname, '..', '..', '..')  // Yunzai-Bot 根目录
 const PLUGIN_DIR = path.join(YUNZAI_DIR, 'plugins', 'mctool-plugin')  // 插件根目录
 const CONFIG_FILE = path.join(PLUGIN_DIR, 'config', 'config.yaml')  // 配置文件路径
+const DEFAULT_CONFIG_FILE = path.join(PLUGIN_DIR, 'config', 'default_config.yaml')  // 默认配置文件路径
 
 // 配置管理
 let configCache = null
+
+/**
+ * 初始化配置文件
+ */
+function initConfig() {
+    try {
+        // 确保配置目录存在
+        const configDir = path.dirname(CONFIG_FILE)
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true })
+        }
+
+        // 如果配置文件不存在，从默认配置创建
+        if (!fs.existsSync(CONFIG_FILE)) {
+            if (fs.existsSync(DEFAULT_CONFIG_FILE)) {
+                fs.copyFileSync(DEFAULT_CONFIG_FILE, CONFIG_FILE)
+                logger.info('[MCTool] 已从默认配置创建配置文件')
+            } else {
+                logger.error('[MCTool] 默认配置文件不存在')
+                return false
+            }
+        }
+        return true
+    } catch (error) {
+        logger.error('[MCTool] 初始化配置文件失败:', error)
+        return false
+    }
+}
 
 /**
  * 获取配置
@@ -23,26 +52,31 @@ let configCache = null
  */
 export function getConfig() {
     try {
-        const configPath = path.join(PLUGIN_DIR, 'config', 'config.yaml');
-        const config = YAML.parse(fs.readFileSync(configPath, 'utf8'));
+        // 初始化配置文件
+        if (!initConfig()) {
+            return getDefaultConfig()
+        }
+
+        // 读取配置文件
+        const config = YAML.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))
         
         // 确保 apis 是数组
         if (!Array.isArray(config.apis)) {
-            config.apis = [];
+            config.apis = []
         }
 
         // 设置默认值
         config.schedule = config.schedule || {
             cron: '30 * * * * *',  // 默认每分钟的第30秒执行
             retryDelay: 5000       // 默认重试等待时间5秒
-        };
-        config.schedule.startupNotify = config.schedule.startupNotify ?? true; // 默认为 true
-        config.dataPath = config.dataPath || 'data/mctool';
+        }
+        config.schedule.startupNotify = config.schedule.startupNotify ?? true // 默认为 true
+        config.dataPath = config.dataPath || 'data/mctool'
         config.defaultGroup = config.defaultGroup || {
             enabled: false,
             serverStatusPush: false,
             newPlayerAlert: false
-        };
+        }
 
         // 确保验证配置存在并更新
         if (!config.verification) {
@@ -50,14 +84,14 @@ export function getConfig() {
                 enabled: false,
                 expireTime: 86400,
                 maxRequests: 5
-            };
+            }
         } else {
             config.verification = {
                 ...config.verification,
                 enabled: config.verification.enabled ?? false,
                 expireTime: config.verification.expireTime ?? 86400,
                 maxRequests: config.verification.maxRequests ?? 5
-            };
+            }
         }
 
         // 确保皮肤配置存在并更新
@@ -70,10 +104,10 @@ export function getConfig() {
                     width: 300,
                     height: 600
                 }
-            };
+            }
         } else {
             // 确保use3D存在
-            config.skin.use3D = config.skin.use3D ?? false;
+            config.skin.use3D = config.skin.use3D ?? false
             
             // 确保render3D对象存在
             if (!config.skin.render3D) {
@@ -82,7 +116,7 @@ export function getConfig() {
                     endpoint: '/render',
                     width: 300,
                     height: 600
-                };
+                }
             } else {
                 // 确保所有必需的属性都存在
                 const defaultRender3D = {
@@ -90,74 +124,65 @@ export function getConfig() {
                     endpoint: '/render',
                     width: 300,
                     height: 600
-                };
+                }
                 
                 // 使用默认值填充缺失的属性
                 config.skin.render3D = {
                     ...defaultRender3D,
                     ...config.skin.render3D
-                };
-            }
-        }
-
-        // 如果配置发生变化，保存回文件
-        let needsSave = false;
-        const originalConfig = fs.existsSync(configPath) ? YAML.parse(fs.readFileSync(configPath, 'utf8')) : {};
-        
-        if (JSON.stringify(originalConfig) !== JSON.stringify(config)) {
-            try {
-                fs.writeFileSync(configPath, YAML.stringify(config, null, 2));
-                logger.info(`[MCTool] 配置文件已更新`);
-            } catch (error) {
-                logger.error(`[MCTool] 更新配置文件失败: ${error}`);
-            }
-        }
-
-        // 验证配置有效性
-        if (!config.schedule.cron) {
-            logger.info(`[MCTool] 未配置定时任务cron表达式，使用默认值: 30 * * * * *`);
-            config.schedule.cron = '30 * * * * *';
-        }
-        if (!config.schedule.retryDelay || config.schedule.retryDelay < 1000) {
-            logger.info(`[MCTool] 重试等待时间配置无效，使用默认值: 5000ms`);
-            config.schedule.retryDelay = 5000;
-        }
-        if (!config.apis.length) {
-            logger.info(`[MCTool] 未配置API，请检查配置文件`);
-        }
-
-        return config;
-    } catch (error) {
-        logger.error('[MCTool] 读取配置文件失败:', error);
-        // 返回默认配置
-        return {
-            apis: [],  // 确保返回空数组而不是 undefined
-            schedule: {
-                cron: '30 * * * * *',
-                startupNotify: true,
-                retryDelay: 5000
-            },
-            dataPath: 'data/mctool',
-            defaultGroup: {
-                enabled: false,
-                serverStatusPush: false,
-                newPlayerAlert: false
-            },
-            verification: {
-                enabled: false,
-                expireTime: 86400,
-                maxRequests: 5
-            },
-            skin: {
-                use3D: false,
-                render3D: {
-                    server: 'http://127.0.0.1:3006',
-                    endpoint: '/render',
-                    width: 300,
-                    height: 600
                 }
             }
-        };
+        }
+
+        return config
+    } catch (error) {
+        logger.error('[MCTool] 读取配置文件失败:', error)
+        return getDefaultConfig()
+    }
+}
+
+/**
+ * 获取默认配置
+ * @returns {object} 默认配置对象
+ */
+function getDefaultConfig() {
+    try {
+        // 如果默认配置文件存在，从文件读取
+        if (fs.existsSync(DEFAULT_CONFIG_FILE)) {
+            return YAML.parse(fs.readFileSync(DEFAULT_CONFIG_FILE, 'utf8'))
+        }
+    } catch (error) {
+        logger.error('[MCTool] 读取默认配置文件失败:', error)
+    }
+
+    // 返回硬编码的默认配置
+    return {
+        apis: [],  // 确保返回空数组而不是 undefined
+        schedule: {
+            cron: '30 * * * * *',
+            startupNotify: true,
+            retryDelay: 5000
+        },
+        dataPath: 'data/mctool',
+        defaultGroup: {
+            enabled: false,
+            serverStatusPush: false,
+            newPlayerAlert: false
+        },
+        verification: {
+            enabled: false,
+            expireTime: 86400,
+            maxRequests: 5
+        },
+        skin: {
+            use3D: false,
+            render3D: {
+                server: 'http://127.0.0.1:3006',
+                endpoint: '/render',
+                width: 300,
+                height: 600
+            }
+        }
     }
 }
 
