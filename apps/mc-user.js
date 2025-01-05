@@ -189,12 +189,14 @@ export class MCUser extends plugin {
 
             let use2DFallback = false;  // 标记是否需要切换到2D渲染
             let renderError = '';  // 记录渲染错误信息
+            let render3DServer = ''; // 存储实际使用的3D渲染服务器
 
             // 如果启用了3D渲染，先检查服务是否在线
             if (use3D) {
-                // 获取渲染服务器配置
-                const server = config.skin?.render3D?.server || 'http://127.0.0.1:3006';
-                const endpoint = config.skin?.render3D?.endpoint || '/render';
+                // 优先使用配置文件中的公共API
+                const server = config.skin?.server || 'http://skin.qxml.ltd';
+                const endpoint = config.skin?.endpoint || '/render';
+                render3DServer = server;
                 logger.info(`[MCTool] 检查3D渲染服务状态: ${server}`);
                 
                 try {
@@ -228,11 +230,11 @@ export class MCUser extends plugin {
                 try {
                     let skinUrl;
                     if (use3D && !use2DFallback) {
-                        // 使用API渲染3D皮肤，并应用配置中的参数
-                        const server = config.skin?.render3D?.server || 'http://127.0.0.1:3006';
-                        const endpoint = config.skin?.render3D?.endpoint || '/render';
-                        const width = config.skin?.render3D?.width || 300;
-                        const height = config.skin?.render3D?.height || 600;
+                        // 使用配置文件中的API渲染3D皮肤
+                        const server = render3DServer;  // 使用之前检查过的服务器
+                        const endpoint = config.skin?.endpoint || '/render';
+                        const width = config.skin?.width || 300;
+                        const height = config.skin?.height || 600;
                         
                         try {
                             // 第一个角度的渲染URL（正面135度）
@@ -426,14 +428,15 @@ export class MCUser extends plugin {
             let render3DServer = '';
             if (skin.use3D) {
                 try {
-                    const server = skin.render3D?.server || 'http://127.0.0.1:3006';
+                    // 优先使用配置文件中的公共API
+                    const server = skin.server || 'http://skin.qxml.ltd';
                     render3DServer = server;
                     const healthResponse = await fetch(`${server}/health`);
                     const healthData = await healthResponse.json();
                     
                     if (!healthResponse.ok || healthData?.status !== 'ok') {
                         render3DStatus = '状态异常';
-                        } else {
+                    } else {
                         render3DStatus = '运行正常';
                     }
                 } catch (error) {
