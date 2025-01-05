@@ -228,7 +228,7 @@ skin:
  1. 目前只测试了Windows环境，其他环境未测试
  2. 部署时需要修改config.yaml中的server和endpoint
  3. 默认端口为3006，可根据项目内文档进行更改，同时请注意插件内配置
-> 公用API：http://skin.qxml.ltd/ 由九九系只喵提供（3500039980）
+> 公用API：http://skin.qxml.ltd 由九九系只喵提供（3500039980）
 
 ## 注意事项
 

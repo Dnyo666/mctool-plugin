@@ -68,7 +68,7 @@ skin:
   # 3D渲染配置
   render3D:
     # 渲染服务器地址
-    server: 'http://127.0.0.1:3006'
+    server: 'http://127.0.0.1:3006' # 3D渲染服务器地址 公共API：http://skin.qxml.ltd
     # 渲染接口路径
     endpoint: '/render'
     # 渲染宽度
