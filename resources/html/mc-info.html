@@ -16,9 +16,15 @@
             border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
+        .container.single-account {
+            max-width: 430px;
+        }
         .header {
             text-align: left;
             margin-bottom: 15px;
+        }
+        .container.single-account .header {
+            text-align: center;
         }
         .nickname {
             font-size: 20px;
@@ -40,6 +46,13 @@
             grid-template-columns: repeat(2, 1fr);
             gap: 15px;
             margin-bottom: 15px;
+        }
+        .accounts.single-account {
+            grid-template-columns: 1fr;
+        }
+        .accounts.single-account .account {
+            max-width: 400px;
+            margin: 0 auto;
         }
         .account {
             background: #f9f9f9;
@@ -81,7 +94,7 @@
             text-overflow: ellipsis;
         }
         .skin-preview {
-            height: 300px;
+            height: 250px;
             background: white;
             border-radius: 4px;
             overflow: hidden;
@@ -91,11 +104,18 @@
             gap: 10px;
             padding: 0 10px;
         }
+        .skin-preview.single-view {
+            justify-content: center;
+        }
         .skin-preview img {
-            height: 280px;
+            height: 230px;
             width: auto;
             flex: 1;
             object-fit: contain;
+            max-width: calc(50% - 5px);
+        }
+        .skin-preview.single-view img {
+            max-width: 100%;
         }
         .footer {
             text-align: center;
@@ -107,12 +127,12 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container {{accounts.length === 1 ? 'single-account' : ''}}">
         <div class="header">
             <div class="nickname">{{nickname}}</div>
             <div class="qq">QQ: {{qq}}</div>
         </div>
-        <div class="accounts">
+        <div class="accounts {{accounts.length === 1 ? 'single-account' : ''}}">
             {{each accounts account}}
             <div class="account">
                 <div class="account-header">
@@ -125,14 +145,16 @@
                         </div>
                     </div>
                 </div>
-                <div class="skin-preview">
-                    <img src="{{account.skinUrl}}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                <div class="skin-preview {{account.skinUrl.length === 1 ? 'single-view' : ''}}">
+                    {{each account.skinUrl url}}
+                    <img src="{{url}}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                    {{/each}}
                 </div>
             </div>
             {{/each}}
         </div>
         <div class="footer">
-            发送 #mc绑定 用户名 进行绑定
+            发送 #mc绑定 用户名 进行绑定 | @Yunzai & @mctool-plugin
         </div>
     </div>
 </body>

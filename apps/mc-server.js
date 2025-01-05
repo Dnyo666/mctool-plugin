@@ -35,6 +35,11 @@ export class MCServer extends plugin {
                     reg: '^#?[Mm][Cc](在线|online)$',
                     fnc: 'getOnlinePlayers',
                     permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc]motd(?:\\s+\\S+(?::\\d+)?)?$',
+                    fnc: 'queryMotd',
+                    permission: 'all'
                 }
             ]
         });
@@ -116,6 +121,66 @@ export class MCServer extends plugin {
     }
 
     /**
+     * 查询服务器MOTD
+     * @param {*} e 事件对象
+     */
+    async queryMotd(e) {
+        try {
+            const match = e.msg.match(/^#?[Mm][Cc]motd(?:\s+(\S+(?::\d+)?))?$/);
+            const address = match[1]?.trim();
+
+            if (!address) {
+                e.reply('格式错误\n用法: #mcmotd <服务器地址[:端口]>\n例如：#mcmotd mc.hypixel.net');
+                return true;
+            }
+
+            logger.info(`[MCTool] 查询服务器MOTD: ${address}`);
+
+            const config = getConfig();
+            if (!config.apis || !Array.isArray(config.apis) || config.apis.length === 0) {
+                e.reply('未配置有效的API，请联系管理员检查配置');
+                return true;
+            }
+
+            let motdInfo = null;
+            // 遍历所有API尝试查询
+            for (const api of config.apis) {
+                try {
+                    const result = await queryServerStatus(address, api);
+                    if (result) {
+                        motdInfo = result;
+                        break;
+                    }
+                } catch (error) {
+                    logger.error(`[MCTool] API ${api.name} 查询MOTD失败:`, error);
+                    continue;
+                }
+            }
+
+            if (!motdInfo) {
+                e.reply('服务器离线或无法访问');
+                return true;
+            }
+
+            const message = [
+                `服务器信息：${address}\n`,
+                `状态：${motdInfo.online ? '在线' : '离线'}`,
+                motdInfo.version ? `\n版本：${motdInfo.version}` : '',
+                motdInfo.motd ? `\nMOTD：${motdInfo.motd}` : '',
+                motdInfo.players ? `\n在线人数：${motdInfo.players.online}/${motdInfo.players.max}` : '',
+                motdInfo.players?.list?.length > 0 ? `\n在线玩家：${motdInfo.players.list.join(', ')}` : ''
+            ].filter(line => line).join('');
+
+            e.reply(message);
+            return true;
+        } catch (error) {
+            logger.error(`[MCTool] 查询MOTD失败:`, error);
+            e.reply('查询失败，请检查服务器地址格式是否正确');
+            return false;
+        }
+    }
+
+    /**
      * 查询服务器状态
      * @param {string} serverId 服务器ID
      * @param {string} groupId 群号
@@ -133,16 +198,28 @@ export class MCServer extends plugin {
             return null;
         }
 
+        let offlineCount = 0;
         // 遍历所有API尝试查询
         for (const api of config.apis) {
             try {
                 const result = await queryServerStatus(server.address, api);
-                if (result && result.online) {
-                    return result;
+                if (result) {
+                    // 如果API明确返回了在线状态
+                    if (result.online === true) {
+                        return result;
+                    } else if (result.online === false) {
+                        offlineCount++;
+                    }
                 }
             } catch (error) {
                 logger.error(`[MCTool] API ${api.name} 查询失败:`, error);
+                offlineCount++;
             }
+        }
+
+        // 如果所有API都明确返回离线或查询失败，则确认为离线
+        if (offlineCount === config.apis.length) {
+            return { online: false };
         }
 
         return null;

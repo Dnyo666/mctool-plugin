@@ -36,6 +36,11 @@ export class MCUser extends plugin {
                     reg: '^#?[Mm][Cc]服务状态$',
                     fnc: 'checkServiceStatus',
                     permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc](?:uuid|uid|id)(?:\\s+(.+))?$',
+                    fnc: 'queryUUID',
+                    permission: 'all'
                 }
             ]
         });
@@ -187,21 +192,29 @@ export class MCUser extends plugin {
 
             // 如果启用了3D渲染，先检查服务是否在线
             if (use3D) {
-                const server = config.skin?.server || 'http://127.0.0.1:3006';
+                // 获取渲染服务器配置
+                const server = config.skin?.render3D?.server || 'http://127.0.0.1:3006';
+                const endpoint = config.skin?.render3D?.endpoint || '/render';
+                logger.info(`[MCTool] 检查3D渲染服务状态: ${server}`);
+                
                 try {
+                    // 检查渲染服务是否在线
                     const healthResponse = await fetch(`${server}/health`);
                     const healthData = await healthResponse.json();
                     
                     if (!healthResponse.ok || healthData?.status !== 'ok') {
                         use2DFallback = true;
                         renderError = '渲染服务状态异常';
+                        logger.info(`[MCTool] 3D渲染服务状态异常: ${JSON.stringify(healthData)}`);
                     } else {
                         // 只在服务正常时发送一次渲染提示
                         await e.reply('正在生成3D渲染图像，请耐心等待...');
+                        logger.info(`[MCTool] 3D渲染服务正常，使用服务器: ${server}`);
                     }
                 } catch (error) {
                     use2DFallback = true;
                     renderError = error.message;
+                    logger.error(`[MCTool] 3D渲染服务检查失败: ${error.message}`);
                 }
 
                 // 如果需要切换到2D渲染，发送一次提示
@@ -216,16 +229,19 @@ export class MCUser extends plugin {
                     let skinUrl;
                     if (use3D && !use2DFallback) {
                         // 使用API渲染3D皮肤，并应用配置中的参数
-                        const server = config.skin?.server || 'http://127.0.0.1:3006';
-                        const endpoint = config.skin?.endpoint || '/render';
-                        const width = config.skin?.width || 300;
-                        const height = config.skin?.height || 600;
+                        const server = config.skin?.render3D?.server || 'http://127.0.0.1:3006';
+                        const endpoint = config.skin?.render3D?.endpoint || '/render';
+                        const width = config.skin?.render3D?.width || 300;
+                        const height = config.skin?.render3D?.height || 600;
                         
                         try {
                             // 第一个角度的渲染URL（正面135度）
                             const render3DUrl1 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=135&angleY=38`;
                             // 第二个角度的渲染URL（背面315度）
                             const render3DUrl2 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=315&angleY=38`;
+
+                            logger.info(`[MCTool] 尝试3D渲染，URL1: ${render3DUrl1}`);
+                            logger.info(`[MCTool] 尝试3D渲染，URL2: ${render3DUrl2}`);
 
                             // 并行请求两个渲染
                             const [response1, response2] = await Promise.race([
@@ -234,16 +250,17 @@ export class MCUser extends plugin {
                                     fetch(render3DUrl2)
                                 ]),
                                 new Promise((_, reject) => 
-                                    setTimeout(() => reject(new Error('3D渲染超时，可能是皮肤过多')), 30000)
+                                    setTimeout(() => reject(new Error('3D渲染超时，可能是皮肤过多')), 60000)
                                 )
                             ]);
                             
                             if (response1.ok && response2.ok) {
+                                logger.info(`[MCTool] 3D渲染成功: ${binding.username}`);
                                 skinUrl = [render3DUrl1, render3DUrl2];
                             } else {
-                                throw new Error('3D渲染失败');
+                                throw new Error(`3D渲染服务返回错误: ${response1.status}, ${response2.status}`);
                             }
-                    } catch (error) {
+                        } catch (error) {
                             logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
                             skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
                         }
@@ -284,13 +301,16 @@ export class MCUser extends plugin {
                 }
             }));
 
-            // 计算合适的视口高度
+            // 计算合适的视口高度和宽度
             const headerHeight = 60;   // 头部高度
-            const accountHeight = 220;  // 账号卡片高度
-            const footerHeight = 40;   // 底部高度
+            const accountHeight = 180;  // 账号卡片高度（减小）
+            const footerHeight = 30;   // 底部高度（减小）
             const spacing = 10;        // 间距
             const rowCount = Math.ceil(accounts.length / 2);  // 计算行数
             const totalHeight = headerHeight + (rowCount * (accountHeight + spacing)) + footerHeight;
+            
+            // 根据账号数量动态设置宽度
+            const viewportWidth = accounts.length === 1 ? 430 : 800;  // 单账号使用较窄的宽度
 
             // 渲染HTML
             const data = {
@@ -306,7 +326,7 @@ export class MCUser extends plugin {
             
             // 设置视口大小
             await page.setViewport({
-                width: 800,
+                width: viewportWidth,
                 height: totalHeight
             });
 
@@ -315,9 +335,9 @@ export class MCUser extends plugin {
 
             // 替换模板中的变量
             template = template
-                .replace('{{nickname}}', data.nickname)
-                .replace('{{qq}}', data.qq)
-                .replace(/{{each[\s\S]*?}}[\s\S]*?{{\/each}}/, accounts.map(account => `
+                .replace(/{{nickname}}/g, data.nickname)
+                .replace(/{{qq}}/g, data.qq)
+                .replace(/{{each accounts account}}[\s\S]*{{\/each}}/g, accounts.map(account => `
                     <div class="account">
                         <div class="account-header">
                             <img class="account-avatar" src="${account.avatarUrl}" alt="Avatar" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
@@ -329,13 +349,12 @@ export class MCUser extends plugin {
                                 </div>
                             </div>
                         </div>
-                        <div class="skin-preview">
-                            ${account.skinUrl.map(url => `
-                                <img src="${url}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
-                            `).join('')}
+                        <div class="skin-preview ${Array.isArray(account.skinUrl) && account.skinUrl.length === 1 ? 'single-view' : ''}">
+                            ${Array.isArray(account.skinUrl) ? account.skinUrl.map(url => `<img src="${url}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">`).join('') : `<img src="${account.skinUrl}" alt="Skin" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">`}
                         </div>
                     </div>
-                `).join(''));
+                `).join(''))
+                .replace(/{{accounts\.length === 1 \? 'single-account' : ''}}/g, accounts.length === 1 ? 'single-account' : '');
 
             await page.setContent(template);
 
@@ -366,6 +385,19 @@ export class MCUser extends plugin {
                 // 删除临时文件
                 if (fs.existsSync(screenshotPath)) {
                     fs.unlinkSync(screenshotPath);
+                }
+                // 清理3D渲染的临时文件
+                if (this._tempFiles) {
+                    for (const file of this._tempFiles) {
+                        if (fs.existsSync(file)) {
+                            try {
+                                fs.unlinkSync(file);
+                            } catch (error) {
+                                logger.error(`[MCTool] 删除临时文件失败: ${error.message}`);
+                            }
+                        }
+                    }
+                    this._tempFiles.clear();
                 }
             }
 
@@ -585,6 +617,48 @@ export class MCUser extends plugin {
         } catch (error) {
             logger.error('[MCTool] 生成头像失败:', error);
             e.reply('生成头像失败，请稍后重试');
+            return false;
+        }
+    }
+
+    /**
+     * 查询UUID
+     * @param {*} e 消息事件
+     */
+    async queryUUID(e) {
+        try {
+            const username = e.msg.match(/^#?[Mm][Cc](?:uuid|uid|id)(?:\s+(.+))?$/)?.[1]?.trim();
+
+            if (username) {
+                // 查询指定用户名的UUID
+                logger.info(`[MCTool] 查询用户 ${username} 的UUID`);
+                const { uuid, raw_id } = await getPlayerUUID(username);
+                if (!uuid) {
+                    e.reply('未找到该用户名，请确认是否为正版用户名');
+                    return false;
+                }
+                e.reply(`用户名：${username}\nUUID：${uuid}`);
+                return true;
+            }
+
+            // 查询已绑定用户的UUID
+            const bindings = Data.read('user_bindings') || {};
+            const userBindings = bindings[e.user_id];
+
+            if (!userBindings || userBindings.length === 0) {
+                e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 <用户名> 进行绑定');
+                return false;
+            }
+
+            const uuidList = userBindings.map(binding => 
+                `用户名：${binding.username}\nUUID：${binding.uuid}`
+            ).join('\n\n');
+
+            e.reply(`你的绑定用户UUID如下：\n${uuidList}`);
+            return true;
+        } catch (error) {
+            logger.error(`[MCTool] 查询UUID失败: ${error.message}`);
+            e.reply('查询UUID失败，请稍后重试');
             return false;
         }
     }
