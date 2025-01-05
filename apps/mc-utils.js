@@ -5,6 +5,7 @@ import fetch from 'node-fetch'
 import HttpsProxyAgent from 'https-proxy-agent'
 import logger from '../models/logger.js'
 import YAML from 'yaml'
+import lodash from 'lodash'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -32,6 +33,7 @@ function initConfig() {
         // 如果配置文件不存在，从默认配置创建
         if (!fs.existsSync(CONFIG_FILE)) {
             if (fs.existsSync(DEFAULT_CONFIG_FILE)) {
+                // 直接复制默认配置文件，保持完全一致的格式和内容
                 fs.copyFileSync(DEFAULT_CONFIG_FILE, CONFIG_FILE)
                 logger.info('[MCTool] 已从默认配置创建配置文件')
             } else {
@@ -65,76 +67,9 @@ export function getConfig() {
             config.apis = []
         }
 
-        // 设置默认值
-        config.schedule = config.schedule || {
-            cron: '30 * * * * *',  // 默认每分钟的第30秒执行
-            retryDelay: 5000       // 默认重试等待时间5秒
-        }
-        config.schedule.startupNotify = config.schedule.startupNotify ?? true // 默认为 true
-        config.dataPath = config.dataPath || 'data/mctool'
-        config.defaultGroup = config.defaultGroup || {
-            enabled: false,
-            serverStatusPush: false,
-            newPlayerAlert: false
-        }
-
-        // 确保验证配置存在并更新
-        if (!config.verification) {
-            config.verification = {
-                enabled: false,
-                expireTime: 86400,
-                maxRequests: 5
-            }
-        } else {
-            config.verification = {
-                ...config.verification,
-                enabled: config.verification.enabled ?? false,
-                expireTime: config.verification.expireTime ?? 86400,
-                maxRequests: config.verification.maxRequests ?? 5
-            }
-        }
-
-        // 确保皮肤配置存在并更新
-        if (!config.skin) {
-            config.skin = {
-                use3D: false,
-                render3D: {
-                    server: 'http://127.0.0.1:3006',
-                    endpoint: '/render',
-                    width: 300,
-                    height: 600
-                }
-            }
-        } else {
-            // 确保use3D存在
-            config.skin.use3D = config.skin.use3D ?? false
-            
-            // 确保render3D对象存在
-            if (!config.skin.render3D) {
-                config.skin.render3D = {
-                    server: 'http://127.0.0.1:3006',
-                    endpoint: '/render',
-                    width: 300,
-                    height: 600
-                }
-            } else {
-                // 确保所有必需的属性都存在
-                const defaultRender3D = {
-                    server: 'http://127.0.0.1:3006',
-                    endpoint: '/render',
-                    width: 300,
-                    height: 600
-                }
-                
-                // 使用默认值填充缺失的属性
-                config.skin.render3D = {
-                    ...defaultRender3D,
-                    ...config.skin.render3D
-                }
-            }
-        }
-
-        return config
+        // 合并默认配置，确保所有必需的字段都存在
+        const defaultConfig = getDefaultConfig()
+        return lodash.merge({}, defaultConfig, config)
     } catch (error) {
         logger.error('[MCTool] 读取配置文件失败:', error)
         return getDefaultConfig()
