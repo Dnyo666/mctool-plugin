@@ -48,8 +48,6 @@ export class MCUser extends plugin {
                 }
             ]
         });
-        // 初始化用户渲染时间记录
-        this.lastRenderTime = new Map();
     }
 
     /**
@@ -712,11 +710,13 @@ export class MCUser extends plugin {
      */
     async renderSkin(e) {
         try {
-            // 检查用户是否在冷却时间内
+            // 读取渲染时间记录
+            const renderTimeData = Data.read('render_limits') || {};
             const now = Date.now();
-            const lastTime = this.lastRenderTime.get(e.user_id) || 0;
+            const lastTime = renderTimeData[e.user_id] || 0;
             const cooldown = 60 * 60 * 1000; // 1小时的冷却时间（毫秒）
 
+            // 检查是否在冷却时间内
             if (now - lastTime < cooldown) {
                 const remainingTime = Math.ceil((cooldown - (now - lastTime)) / 1000 / 60); // 剩余分钟
                 e.reply(`因服务器负载过高，该功能每小时只能使用一次，请在${remainingTime}分钟后再试`);
@@ -731,6 +731,10 @@ export class MCUser extends plugin {
                 e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 <用户名> 进行绑定');
                 return false;
             }
+
+            // 立即更新并保存渲染时间记录，防止用户在渲染过程中重复发送命令
+            renderTimeData[e.user_id] = now;
+            Data.write('render_limits', renderTimeData);
 
             // 获取配置
             const config = getConfig();
@@ -757,14 +761,12 @@ export class MCUser extends plugin {
                 } catch (error) {
                     logger.error(`[MCTool] 皮肤渲染失败: ${error.message}`);
                     await e.reply(`皮肤渲染失败: ${error.message}`);
+                    return false;
                 }
             });
 
+            // 等待所有渲染完成
             await Promise.all(renderPromises);
-            
-            // 更新用户最后渲染时间
-            this.lastRenderTime.set(e.user_id, now);
-            
             return true;
         } catch (error) {
             logger.error(`[MCTool] 皮肤渲染失败: ${error.message}`);
