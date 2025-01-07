@@ -48,6 +48,8 @@ export class MCUser extends plugin {
                 }
             ]
         });
+        // 初始化用户渲染时间记录
+        this.lastRenderTime = new Map();
     }
 
     /**
@@ -710,6 +712,17 @@ export class MCUser extends plugin {
      */
     async renderSkin(e) {
         try {
+            // 检查用户是否在冷却时间内
+            const now = Date.now();
+            const lastTime = this.lastRenderTime.get(e.user_id) || 0;
+            const cooldown = 60 * 60 * 1000; // 1小时的冷却时间（毫秒）
+
+            if (now - lastTime < cooldown) {
+                const remainingTime = Math.ceil((cooldown - (now - lastTime)) / 1000 / 60); // 剩余分钟
+                e.reply(`因服务器负载过高，该功能每小时只能使用一次，请在${remainingTime}分钟后再试`);
+                return false;
+            }
+
             // 读取绑定数据
             const bindings = Data.read('user_bindings') || {};
             const userBindings = bindings[e.user_id];
@@ -748,6 +761,10 @@ export class MCUser extends plugin {
             });
 
             await Promise.all(renderPromises);
+            
+            // 更新用户最后渲染时间
+            this.lastRenderTime.set(e.user_id, now);
+            
             return true;
         } catch (error) {
             logger.error(`[MCTool] 皮肤渲染失败: ${error.message}`);
