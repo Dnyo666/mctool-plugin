@@ -41,6 +41,10 @@ export class MCUser extends plugin {
                     reg: '^#?[Mm][Cc](?:uuid|uid|id)(?:\\s+(.+))?$',
                     fnc: 'queryUUID',
                     permission: 'all'
+                },
+                {
+                    reg: '^#mc皮肤渲染$',
+                    fnc: 'renderSkin'
                 }
             ]
         });
@@ -186,6 +190,7 @@ export class MCUser extends plugin {
             // 获取配置
             const config = getConfig();
             const use3D = config.skin?.use3D ?? false;
+            const renderType = config.skin?.renderType ?? 1;
 
             let use2DFallback = false;  // 标记是否需要切换到2D渲染
             let renderError = '';  // 记录渲染错误信息
@@ -193,35 +198,40 @@ export class MCUser extends plugin {
 
             // 如果启用了3D渲染，先检查服务是否在线
             if (use3D) {
-                // 优先使用配置文件中的公共API
-                const server = config.skin?.server || 'http://skin.qxml.ltd';
-                const endpoint = config.skin?.endpoint || '/render';
-                render3DServer = server;
-                logger.info(`[MCTool] 检查3D渲染服务状态: ${server}`);
-                
-                try {
-                    // 检查渲染服务是否在线
-                    const healthResponse = await fetch(`${server}/health`);
-                    const healthData = await healthResponse.json();
+                if (renderType === 1) {
+                    // 渲染方案一：行走视图
+                    await e.reply('正在生成3D渲染图像，请耐心等待...');
+                } else {
+                    // 渲染方案二：站立视图
+                    const server = config.skin?.render2?.server || 'http://skin.qxml.ltd';
+                    const endpoint = config.skin?.render2?.endpoint || '/render';
+                    render3DServer = server;
+                    logger.info(`[MCTool] 检查3D渲染服务状态: ${server}`);
                     
-                    if (!healthResponse.ok || healthData?.status !== 'ok') {
+                    try {
+                        // 检查渲染服务是否在线
+                        const healthResponse = await fetch(`${server}/health`);
+                        const healthData = await healthResponse.json();
+                        
+                        if (!healthResponse.ok || healthData?.status !== 'ok') {
+                            use2DFallback = true;
+                            renderError = '渲染服务状态异常';
+                            logger.info(`[MCTool] 3D渲染服务状态异常: ${JSON.stringify(healthData)}`);
+                        } else {
+                            // 只在服务正常时发送一次渲染提示
+                            await e.reply('正在生成3D渲染图像，请耐心等待...');
+                            logger.info(`[MCTool] 3D渲染服务正常，使用服务器: ${server}`);
+                        }
+                    } catch (error) {
                         use2DFallback = true;
-                        renderError = '渲染服务状态异常';
-                        logger.info(`[MCTool] 3D渲染服务状态异常: ${JSON.stringify(healthData)}`);
-                    } else {
-                        // 只在服务正常时发送一次渲染提示
-                        await e.reply('正在生成3D渲染图像，请耐心等待...');
-                        logger.info(`[MCTool] 3D渲染服务正常，使用服务器: ${server}`);
+                        renderError = error.message;
+                        logger.error(`[MCTool] 3D渲染服务检查失败: ${error.message}`);
                     }
-                } catch (error) {
-                    use2DFallback = true;
-                    renderError = error.message;
-                    logger.error(`[MCTool] 3D渲染服务检查失败: ${error.message}`);
-                }
 
-                // 如果需要切换到2D渲染，发送一次提示
-                if (use2DFallback) {
-                    await e.reply(`3D渲染服务异常: ${renderError}，已切换至2D渲染`);
+                    // 如果需要切换到2D渲染，发送一次提示
+                    if (use2DFallback) {
+                        await e.reply(`3D渲染服务异常: ${renderError}，已切换至2D渲染`);
+                    }
                 }
             }
 
@@ -230,41 +240,64 @@ export class MCUser extends plugin {
                 try {
                     let skinUrl;
                     if (use3D && !use2DFallback) {
-                        // 使用配置文件中的API渲染3D皮肤
-                        const server = render3DServer;  // 使用之前检查过的服务器
-                        const endpoint = config.skin?.endpoint || '/render';
-                        const width = config.skin?.width || 300;
-                        const height = config.skin?.height || 600;
-                        
-                        try {
-                            // 第一个角度的渲染URL（正面135度）
-                            const render3DUrl1 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=135&angleY=38`;
-                            // 第二个角度的渲染URL（背面315度）
-                            const render3DUrl2 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=315&angleY=38`;
-
-                            logger.info(`[MCTool] 尝试3D渲染，URL1: ${render3DUrl1}`);
-                            logger.info(`[MCTool] 尝试3D渲染，URL2: ${render3DUrl2}`);
-
-                            // 并行请求两个渲染
-                            const [response1, response2] = await Promise.race([
-                                Promise.all([
-                                    fetch(render3DUrl1),
-                                    fetch(render3DUrl2)
-                                ]),
-                                new Promise((_, reject) => 
-                                    setTimeout(() => reject(new Error('3D渲染超时，可能是皮肤过多')), 60000)
-                                )
-                            ]);
+                        if (renderType === 1) {
+                            // 渲染方案一：行走视图
+                            const server = config.skin?.render1?.server || 'https://skin2.qxml.ltd';
+                            const definition = config.skin?.render1?.definition || 1.5;
+                            const transparent = config.skin?.render1?.transparent ?? true;
                             
-                            if (response1.ok && response2.ok) {
-                                logger.info(`[MCTool] 3D渲染成功: ${binding.username}`);
-                                skinUrl = [render3DUrl1, render3DUrl2];
-                            } else {
-                                throw new Error(`3D渲染服务返回错误: ${response1.status}, ${response2.status}`);
+                            const render3DUrl = `${server}/mojang/image/both?name=${binding.username}&definition=${definition}&transparent=${transparent}`;
+                            logger.info(`[MCTool] 尝试3D渲染，URL: ${render3DUrl}`);
+                            
+                            try {
+                                const response = await fetch(render3DUrl);
+                                if (response.ok) {
+                                    logger.info(`[MCTool] 3D渲染成功: ${binding.username}`);
+                                    skinUrl = [render3DUrl];
+                                } else {
+                                    throw new Error(`3D渲染服务返回错误: ${response.status}`);
+                                }
+                            } catch (error) {
+                                logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
+                                skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
                             }
-                        } catch (error) {
-                            logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
-                            skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
+                        } else {
+                            // 渲染方案二：站立视图
+                            const server = render3DServer;  // 使用之前检查过的服务器
+                            const endpoint = config.skin?.render2?.endpoint || '/render';
+                            const width = config.skin?.render2?.width || 300;
+                            const height = config.skin?.render2?.height || 600;
+                            
+                            try {
+                                // 第一个角度的渲染URL（正面135度）
+                                const render3DUrl1 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=135&angleY=38`;
+                                // 第二个角度的渲染URL（背面315度）
+                                const render3DUrl2 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=315&angleY=38`;
+
+                                logger.info(`[MCTool] 尝试3D渲染，URL1: ${render3DUrl1}`);
+                                logger.info(`[MCTool] 尝试3D渲染，URL2: ${render3DUrl2}`);
+
+                                // 并行请求两个渲染
+                                const [response1, response2] = await Promise.race([
+                                    Promise.all([
+                                        fetch(render3DUrl1),
+                                        fetch(render3DUrl2)
+                                    ]),
+                                    new Promise((_, reject) => 
+                                        setTimeout(() => reject(new Error('3D渲染超时，可能是皮肤过多')), 60000)
+                                    )
+                                ]);
+                                
+                                if (response1.ok && response2.ok) {
+                                    logger.info(`[MCTool] 3D渲染成功: ${binding.username}`);
+                                    skinUrl = [render3DUrl1, render3DUrl2];
+                                } else {
+                                    throw new Error(`3D渲染服务返回错误: ${response1.status}, ${response2.status}`);
+                                }
+                            } catch (error) {
+                                logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
+                                skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
+                            }
                         }
                     } else {
                         skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
@@ -423,25 +456,44 @@ export class MCUser extends plugin {
             const config = getConfig();
             const skin = config?.skin || {};
             
-            // 检查3D渲染状态
-            let render3DStatus = '未启用';
-            let render3DServer = '';
-            if (skin.use3D) {
+            // 检查行走视图渲染状态
+            let walkingViewStatus = '未启用';
+            let walkingViewServer = '';
+            if (skin.use3D && skin.renderType === 1) {
                 try {
-                    // 优先使用配置文件中的公共API
-                    const server = skin.server || 'http://skin.qxml.ltd';
-                    render3DServer = server;
+                    const server = skin.render1?.server || 'https://skin2.qxml.ltd';
+                    walkingViewServer = server;
+                    const response = await fetch('https://skin2.qxml.ltd/docs#/');
+                    
+                    if (response.ok) {
+                        walkingViewStatus = '运行正常';
+                    } else {
+                        walkingViewStatus = '状态异常';
+                    }
+                } catch (error) {
+                    logger.error('[MCTool] 检查行走视图渲染状态失败:', error);
+                    walkingViewStatus = '连接失败';
+                }
+            }
+
+            // 检查站立视图渲染状态
+            let standingViewStatus = '未启用';
+            let standingViewServer = '';
+            if (skin.use3D && (skin.renderType === 2 || skin.renderType === 1)) {
+                try {
+                    const server = skin.render2?.server || 'http://skin.qxml.ltd';
+                    standingViewServer = server;
                     const healthResponse = await fetch(`${server}/health`);
                     const healthData = await healthResponse.json();
                     
                     if (!healthResponse.ok || healthData?.status !== 'ok') {
-                        render3DStatus = '状态异常';
+                        standingViewStatus = '状态异常';
                     } else {
-                        render3DStatus = '运行正常';
+                        standingViewStatus = '运行正常';
                     }
                 } catch (error) {
-                    logger.error('[MCTool] 检查3D渲染状态失败:', error);
-                    render3DStatus = '连接失败';
+                    logger.error('[MCTool] 检查站立视图渲染状态失败:', error);
+                    standingViewStatus = '连接失败';
                 }
             }
             
@@ -462,27 +514,13 @@ export class MCUser extends plugin {
                 logger.error('[MCTool] 检查头像服务状态失败:', error);
                 avatarStatus = '连接失败';
             }
-
-            // 检查公用3D渲染API状态
-            let publicRender3DStatus = '异常';
-            try {
-                const response = await fetch('http://skin.qxml.ltd/health');
-                const data = await response.json();
-                
-                if (response.ok && data?.status === 'ok') {
-                    publicRender3DStatus = '运行正常';
-                }
-            } catch (error) {
-                logger.error('[MCTool] 检查公用3D渲染API状态失败:', error);
-                publicRender3DStatus = '连接失败';
-            }
             
             // 发送状态信息
             const message = [
                 '服务状态检查结果：\n',
-                `3D渲染服务：${render3DStatus}${render3DServer ? ` (${render3DServer})` : ''}\n`,
-                `公用头像服务：${avatarStatus}\n`,
-                `公用3D渲染：${publicRender3DStatus} (http://skin.qxml.ltd)`
+                `行走视图渲染：${walkingViewStatus}${walkingViewServer ? ` (${walkingViewServer})` : ''}\n`,
+                `站立视图渲染：${standingViewStatus}${standingViewServer ? ` (${standingViewServer})` : ''}\n`,
+                `公用头像服务：${avatarStatus}`
             ].join('');
             
             e.reply(message);
@@ -662,6 +700,58 @@ export class MCUser extends plugin {
         } catch (error) {
             logger.error(`[MCTool] 查询UUID失败: ${error.message}`);
             e.reply('查询UUID失败，请稍后重试');
+            return false;
+        }
+    }
+
+    /**
+     * 渲染皮肤
+     * @param {*} e 消息事件
+     */
+    async renderSkin(e) {
+        try {
+            // 读取绑定数据
+            const bindings = Data.read('user_bindings') || {};
+            const userBindings = bindings[e.user_id];
+
+            if (!userBindings || userBindings.length === 0) {
+                e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 <用户名> 进行绑定');
+                return false;
+            }
+
+            // 获取配置
+            const config = getConfig();
+            const server = config.skin?.render1?.server || 'https://skin2.qxml.ltd';
+            const definition = 3.5;
+            const transparent = true;
+
+            await e.reply('正在生成皮肤渲染图像，请耐心等待...');
+
+            // 处理每个绑定账号
+            const renderPromises = userBindings.map(async (binding) => {
+                try {
+                    const render3DUrl = `${server}/mojang/image/both?name=${binding.username}&definition=${definition}&transparent=${transparent}`;
+                    logger.info(`[MCTool] 尝试渲染皮肤，URL: ${render3DUrl}`);
+                    
+                    const response = await fetch(render3DUrl);
+                    if (!response.ok) {
+                        throw new Error(`渲染服务返回错误: ${response.status}`);
+                    }
+
+                    // 发送渲染结果
+                    await e.reply(segment.image(render3DUrl));
+                    logger.info(`[MCTool] 皮肤渲染成功: ${binding.username}`);
+                } catch (error) {
+                    logger.error(`[MCTool] 皮肤渲染失败: ${error.message}`);
+                    await e.reply(`皮肤渲染失败: ${error.message}`);
+                }
+            });
+
+            await Promise.all(renderPromises);
+            return true;
+        } catch (error) {
+            logger.error(`[MCTool] 皮肤渲染失败: ${error.message}`);
+            e.reply('皮肤渲染失败，请稍后重试');
             return false;
         }
     }

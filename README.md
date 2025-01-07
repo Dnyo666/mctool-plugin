@@ -88,6 +88,21 @@ pnpm install
 - `#mc头像 [全身|半身|头部] [玩家名]（可选）` - 生成玩家头像，不指定玩家名时生成所有绑定账号的头像
 - `#mc服务状态` - 查看公用头像服务状态和3D渲染服务状态
 - `#mcid <玩家名>（可选）` - 查询玩家UUID，默认查询绑定账号
+- `#mc皮肤渲染` - 使用行走视图渲染已绑定账号的皮肤，生成高清3D渲染图
+
+### 皮肤渲染预览
+
+<div align="center">
+  <div style="display: inline-block; text-align: center; margin: 10px;">
+    <p><b>行走视图渲染</b></p>
+    <img src="resources/readme/walking-view.png" width="400" alt="行走视图渲染示例">
+  </div>
+  <div style="display: inline-block; text-align: center; margin: 10px;">
+    <p><b>站立视图渲染</b></p>
+    <img src="resources/readme/standing-view.png" width="440" alt="站立视图渲染示例">
+  </div>
+</div>
+
 ### 管理指令
 - `#mc添加 <名称> <IP:端口> [描述]` - 添加服务器
 - `#mc删除 <ID>` - 删除指定服务器
@@ -203,25 +218,29 @@ verification:
 
 <details>
 <summary>皮肤渲染配置</summary>
-
 ```yaml
 skin:
   use3D: true  # 是否使用3D渲染
-  render3D:
-    server: "http://127.0.0.1:3006"  # 3D渲染服务器地址
-    endpoint: "/render"  # 渲染接口路径
+  renderType: 1  # 渲染方案选择 (1: 行走视图, 2: 站立视图)
+  # 渲染方案一配置（行走视图）
+  render1:
+    server: 'https://skin2.qxml.ltd'  # 渲染服务器地址
+    definition: 1.5  # 图片清晰度
+    transparent: true  # 是否透明背景
+  # 渲染方案二配置（站立视图）
+  render2:
+    server: 'http://skin.qxml.ltd'  # 渲染服务器地址
+    endpoint: '/render'  # 渲染接口路径
     width: 300   # 渲染宽度
     height: 600  # 渲染高度
-    angle: 135   # 水平旋转角度(0-360)
-    angleY: 45   # 垂直旋转角度(0-90)
 ```
 </details>
 
 ## 3D渲染接口部署
 
-> 3D渲染原项目（不支持api）：https://github.com/bs-community/skinview3d
+> 3D渲染原项目（行走&站立视角）（不支持api）：https://github.com/bs-community/skinview3d
 
- 项目地址：https://github.com/Dnyo666/skinview3d-api
+ 一、站立视角API项目地址：https://github.com/Dnyo666/skinview3d-api
  
  **注意：** 
  
@@ -229,6 +248,14 @@ skin:
  2. 部署时需要修改config.yaml中的server和endpoint
  3. 默认端口为3006，可根据项目内文档进行更改，同时请注意插件内配置
 > 公用API：http://skin.qxml.ltd 由九九系只喵提供（3500039980）
+
+二、行走视角API项目地址：https://github.com/SerinaNya/SkinRenderMC
+
+**注意：** 
+
+1. 行走视角API项目可自行部署，且需要修改config.yaml中的server
+2. 部署方法详见项目页，使用docker快速部署
+3. 浅巷墨黎提供公用API：http://skin2.qxml.ltd
 
 ## 注意事项
 
@@ -252,10 +279,9 @@ skin:
   - [x] 3D渲染皮肤（#mc信息）
   - [x] mc头像渲染(感谢Natsusomekeishi/MCCAG)
   - [x] 服务状态查询
-  
+  - [ ] mod搜索下载
 - 文档：
   - [ ] 添加详细的配置说明
-  - [ ] 完善安装教程
   - [ ] 添加常见问题解答
   - [ ] 编写开发者文档
 

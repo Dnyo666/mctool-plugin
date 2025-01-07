@@ -65,13 +65,23 @@ verification:
 skin:
   # 是否使用3D渲染
   use3D: false
-  # 3D渲染配置
-  render3D:
+  # 渲染方案选择 (1: 行走视图[推荐], 2: 站立视图)
+  renderType: 1
+  # 渲染方案一配置（行走视图）
+  render1:
+    # 渲染服务器地址
+    server: 'https://skin2.qxml.ltd' # 3D渲染服务器地址 公共API：https://skin2.qxml.ltd
+    # 图片清晰度
+    definition: 1.5 # 图片清晰度 推荐在1.5-2.5之间
+    # 是否透明背景
+    transparent: true # 是否透明背景 推荐开启
+  # 渲染方案二配置（站立视图）
+  render2:
     # 渲染服务器地址
     server: 'http://127.0.0.1:3006' # 3D渲染服务器地址 公共API：http://skin.qxml.ltd
     # 渲染接口路径
     endpoint: '/render'
     # 渲染宽度
-    width: 300
+    width: 300 # 渲染宽度 推荐在300-500之间
     # 渲染高度
     height: 600 

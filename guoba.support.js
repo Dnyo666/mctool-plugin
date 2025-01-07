@@ -473,9 +473,54 @@ export function supportGuoba() {
                     defaultValue: false
                 },
                 {
-                    field: 'skin.server',
-                    label: '渲染服务器',
-                    bottomHelpMessage: '3D渲染服务器地址，公用API：http://skin.qxml.ltd',
+                    field: 'skin.renderType',
+                    label: '渲染方案',
+                    bottomHelpMessage: '选择3D渲染方案（推荐使用行走视图，效果更好）',
+                    component: 'Select',
+                    componentProps: {
+                        options: [
+                            { label: '行走视图（推荐）', value: 1 },
+                            { label: '站立视图', value: 2 }
+                        ],
+                        placeholder: '请选择渲染方案'
+                    },
+                    defaultValue: 1
+                },
+                {
+                    field: 'skin.render1.server',
+                    label: '行走视图服务器',
+                    bottomHelpMessage: '行走视图渲染服务器地址，公用API：https://skin2.qxml.ltd',
+                    component: 'Input',
+                    required: false,
+                    defaultValue: 'https://skin2.qxml.ltd',
+                    componentProps: {
+                        placeholder: 'https://skin2.qxml.ltd'
+                    }
+                },
+                {
+                    field: 'skin.render1.definition',
+                    label: '行走视图清晰度',
+                    bottomHelpMessage: '行走视图渲染图像清晰度，推荐在1.5-2.5之间',
+                    component: 'InputNumber',
+                    required: false,
+                    defaultValue: 1.5,
+                    componentProps: {
+                        min: 1,
+                        max: 3,
+                        step: 0.1
+                    }
+                },
+                {
+                    field: 'skin.render1.transparent',
+                    label: '行走视图透明背景',
+                    bottomHelpMessage: '行走视图渲染是否使用透明背景，推荐开启',
+                    component: 'Switch',
+                    defaultValue: true
+                },
+                {
+                    field: 'skin.render2.server',
+                    label: '站立视图服务器',
+                    bottomHelpMessage: '站立视图渲染服务器地址，公用API：http://skin.qxml.ltd',
                     component: 'Input',
                     required: false,
                     defaultValue: 'http://127.0.0.1:3006',
@@ -484,9 +529,9 @@ export function supportGuoba() {
                     }
                 },
                 {
-                    field: 'skin.endpoint',
-                    label: '渲染接口',
-                    bottomHelpMessage: '渲染服务器的接口路径',
+                    field: 'skin.render2.endpoint',
+                    label: '站立视图接口',
+                    bottomHelpMessage: '站立视图渲染服务器的接口路径',
                     component: 'Input',
                     required: false,
                     defaultValue: '/render',
@@ -495,9 +540,9 @@ export function supportGuoba() {
                     }
                 },
                 {
-                    field: 'skin.width',
-                    label: '渲染宽度',
-                    bottomHelpMessage: '3D渲染图像宽度',
+                    field: 'skin.render2.width',
+                    label: '站立视图宽度',
+                    bottomHelpMessage: '站立视图渲染图像宽度，推荐在300-500之间',
                     component: 'InputNumber',
                     required: false,
                     defaultValue: 300,
@@ -508,9 +553,9 @@ export function supportGuoba() {
                     }
                 },
                 {
-                    field: 'skin.height',
-                    label: '渲染高度',
-                    bottomHelpMessage: '3D渲染图像高度',
+                    field: 'skin.render2.height',
+                    label: '站立视图高度',
+                    bottomHelpMessage: '站立视图渲染图像高度',
                     component: 'InputNumber',
                     required: false,
                     defaultValue: 600,
@@ -613,10 +658,18 @@ export function supportGuoba() {
                         // 获取当前配置中的皮肤配置
                         const currentSkin = {
                             use3D: data.skin.use3D ?? false,  // 是否使用3D渲染
-                            server: data.skin.server || 'http://127.0.0.1:3006',  // 3D渲染服务器地址
-                            endpoint: data.skin.endpoint || '/render',  // 渲染接口路径
-                            width: data.skin.width || 300,   // 渲染宽度
-                            height: data.skin.height || 600  // 渲染高度
+                            renderType: data.skin.renderType ?? 1,  // 渲染方案选择
+                            render1: {
+                                server: data.skin.render1?.server || 'http://skin.qxml.ltd',
+                                endpoint: data.skin.render1?.endpoint || '/render',
+                                width: data.skin.render1?.width || 300,
+                                height: data.skin.render1?.height || 600
+                            },
+                            render2: {
+                                server: data.skin.render2?.server || 'https://skin2.qxml.ltd',
+                                definition: data.skin.render2?.definition || 1.5,
+                                transparent: data.skin.render2?.transparent ?? true
+                            }
                         }
 
                         // 更新到主配置
@@ -686,10 +739,18 @@ verification:
 # 皮肤渲染配置
 skin:
   use3D: ${currentConfig.skin.use3D}  # 是否使用3D渲染
-  server: ${currentConfig.skin.server}  # 3D渲染服务器地址
-  endpoint: ${currentConfig.skin.endpoint}  # 渲染接口路径
-  width: ${currentConfig.skin.width}   # 渲染宽度
-  height: ${currentConfig.skin.height}  # 渲染高度`
+  renderType: ${currentConfig.skin.renderType}  # 渲染方案选择 (1: 前后视图, 2: 整体视图)
+  # 渲染方案一配置（前后视图）
+  render1:
+    server: '${currentConfig.skin.render1.server}'  # 渲染服务器地址
+    endpoint: '${currentConfig.skin.render1.endpoint}'  # 渲染接口路径
+    width: ${currentConfig.skin.render1.width}   # 渲染宽度
+    height: ${currentConfig.skin.render1.height}  # 渲染高度
+  # 渲染方案二配置（整体视图）
+  render2:
+    server: '${currentConfig.skin.render2.server}'  # 渲染服务器地址
+    definition: ${currentConfig.skin.render2.definition}  # 图片清晰度
+    transparent: ${currentConfig.skin.render2.transparent}  # 是否透明背景`
 
                         // 写入文件
                         fs.writeFileSync(CONFIG_FILE, content)
