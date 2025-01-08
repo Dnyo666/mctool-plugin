@@ -37,7 +37,8 @@ const pluginOrder = [
     { name: 'mc-push-commands', file: './apps/mc-push-commands.js' },
     { name: 'mc-user', file: './apps/mc-user.js' },
     { name: 'help', file: './apps/help.js' },
-    { name: 'update', file: './apps/update.js' }
+    { name: 'update', file: './apps/update.js' },
+    { name: 'mc-mod', file: './apps/mc-mod.js' }
 ]
 
 for (const plugin of pluginOrder) {

@@ -42,6 +42,8 @@
   - 查询玩家UUID
   - 渲染玩家头像
   - 渲染玩家3D皮肤
+- [x] 其他功能
+  - Mod搜索、下载
 
 
 ## 安装方法
@@ -133,6 +135,13 @@ pnpm install
 - `#mc绑定 用户名` - 绑定正版用户名
 - `#mc解绑 用户名` - 解绑正版用户名
 - `#mc信息` - 查看已绑定正版用户名
+
+### Mod功能
+- `#mcmod帮助` - 显示MCTool Mod帮助信息
+- `#mcmod搜索 <关键词>` - 搜索指定关键词的Mod
+- `#mcmod版本 <序号/modid> [版本号] [加载器]` - 搜索指定关键词的Mod版本
+- `#mcmod下载 <序号/modid> [版本号] [加载器]` - 下载指定版本的Mod
+- `#mcmod下载 <版本序号>` - 下载版本列表中指定版本的Mod
 
 ## 配置说明
 
@@ -234,6 +243,18 @@ skin:
     width: 300   # 渲染宽度
     height: 600  # 渲染高度
 ```
+</details>
+
+<details>
+<summary>Mod搜索配置</summary>
+```yaml
+mod:
+  # 是否启用mod下载功能，不影响搜索和版本查询
+  enableDownload: true
+  # 默认mod源 (可选值: modrinth, curseforge)
+  defaultSource: 'curseforge' 
+```
+
 </details>
 
 ## 3D渲染接口部署

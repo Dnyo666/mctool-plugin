@@ -99,7 +99,12 @@ skin:
   server: ${mergedConfig.skin?.server || 'http://127.0.0.1:3006'}  # 渲染服务器地址
   endpoint: ${mergedConfig.skin?.endpoint || '/render'}  # 渲染接口路径
   width: ${mergedConfig.skin?.width || 300}   # 渲染宽度
-  height: ${mergedConfig.skin?.height || 600}  # 渲染高度`
+  height: ${mergedConfig.skin?.height || 600}  # 渲染高度
+
+# Mod功能配置
+mod:
+  enableDownload: ${mergedConfig.mod?.enableDownload ?? true}  # 是否启用mod下载功能
+  defaultSource: '${mergedConfig.mod?.defaultSource || 'curseforge'}'  # 默认mod源（modrinth或curseforge）`
 
             fs.writeFileSync(this.configPath, content, 'utf8')
             return true
@@ -165,10 +170,22 @@ skin:
             },
             skin: {
                 use3D: false,
-                server: 'http://127.0.0.1:3006',
-                endpoint: '/render',
-                width: 300,
-                height: 600
+                renderType: 1,
+                render1: {
+                    server: 'https://skin2.qxml.ltd',
+                    definition: 1.5,
+                    transparent: true
+                },
+                render2: {
+                    server: 'http://127.0.0.1:3006',
+                    endpoint: '/render',
+                    width: 300,
+                    height: 600
+                }
+            },
+            mod: {
+                enableDownload: true,
+                defaultSource: 'curseforge'
             }
         }
     }
@@ -564,6 +581,36 @@ export function supportGuoba() {
                         max: 1000,
                         step: 50
                     }
+                },
+                {
+                    component: 'Divider',
+                    label: 'Mod功能配置',
+                    componentProps: {
+                        orientation: 'left',
+                        plain: true
+                    }
+                },
+                {
+                    field: 'mod.enableDownload',
+                    label: 'Mod下载功能',
+                    bottomHelpMessage: '是否启用Mod下载功能（不影响搜索和版本查询）',
+                    component: 'Switch',
+                    defaultValue: true
+                },
+                {
+                    field: 'mod.defaultSource',
+                    label: '默认Mod源',
+                    bottomHelpMessage: '选择默认的Mod搜索源',
+                    component: 'Select',
+                    componentProps: {
+                        options: [
+                            { label: 'CurseForge', value: 'curseforge' },
+                            { label: 'Modrinth', value: 'modrinth' }
+                        ],
+                        placeholder: '请选择默认Mod源'
+                    },
+                    required: true,
+                    defaultValue: 'curseforge'
                 }
             ],
             getConfigData() {
@@ -750,7 +797,12 @@ skin:
   render2:
     server: '${currentConfig.skin.render2.server}'  # 渲染服务器地址
     definition: ${currentConfig.skin.render2.definition}  # 图片清晰度
-    transparent: ${currentConfig.skin.render2.transparent}  # 是否透明背景`
+    transparent: ${currentConfig.skin.render2.transparent}  # 是否透明背景
+
+# Mod功能配置
+mod:
+  enableDownload: ${currentConfig.mod?.enableDownload ?? true}  # 是否启用mod下载功能
+  defaultSource: '${currentConfig.mod?.defaultSource || 'curseforge'}'  # 默认mod源（modrinth或curseforge）`
 
                         // 写入文件
                         fs.writeFileSync(CONFIG_FILE, content)

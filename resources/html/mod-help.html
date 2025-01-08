@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            margin: 0;
+            background: #f5f5f5;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        .container {
+            padding: 15px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .version {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .commands {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .command-group {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .group-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #4a90e2;
+        }
+        .command-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .command-item {
+            font-size: 14px;
+            color: #333;
+        }
+        .command-name {
+            font-weight: bold;
+            color: #4a90e2;
+        }
+        .command-desc {
+            color: #666;
+            margin-top: 2px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">MCTool-Mod 帮助</div>
+            <div class="version">Minecraft Mod搜索工具</div>
+        </div>
+        <div class="commands">
+            <div class="command-group">
+                <div class="group-title">基础功能</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mcmod搜索 <关键词> [版本] [加载器]</div>
+                        <div class="command-desc">使用插件默认源搜索Mod，支持指定MC版本和加载器</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mcmodrinth搜索 <关键词> [版本] [加载器]</div>
+                        <div class="command-desc">仅在Modrinth平台搜索</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mcmodcurse搜索 <关键词> [版本] [加载器]</div>
+                        <div class="command-desc">仅在CurseForge平台搜索</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mcmod翻页</div>
+                        <div class="command-desc">查看搜索结果的下一页</div>
+                    </div>
+                </div>
+            </div>
+            <div class="command-group">
+                <div class="group-title">Mod信息</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mcmod信息 <序号/ModID></div>
+                        <div class="command-desc">查看Mod的详细信息</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mcmod版本 <序号> [版本] [加载器]</div>
+                        <div class="command-desc">查看Mod的版本列表</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mcmod版本翻页</div>
+                        <div class="command-desc">查看版本列表的下一页</div>
+                    </div>
+                </div>
+            </div>
+            <div class="command-group">
+                <div class="group-title">下载功能</div>
+                <div class="command-list">
+                    <div class="command-item">
+                        <div class="command-name">#mcmod下载 <版本序号></div>
+                        <div class="command-desc">从版本列表下载指定版本</div>
+                    </div>
+                    <div class="command-item">
+                        <div class="command-name">#mcmod下载 <序号/ModID> <版本号/版本ID> [加载器]</div>
+                        <div class="command-desc">下载指定版本的Mod</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

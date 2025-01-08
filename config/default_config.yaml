@@ -85,3 +85,10 @@ skin:
     width: 300 # 渲染宽度 推荐在300-500之间
     # 渲染高度
     height: 600 
+
+# Mod功能配置
+mod:
+  # 是否启用mod下载功能，不影响搜索和版本查询
+  enableDownload: true
+  # 默认mod源 (可选值: modrinth, curseforge)
+  defaultSource: 'curseforge' 
