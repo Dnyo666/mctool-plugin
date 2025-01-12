@@ -87,7 +87,7 @@ export class MCUser extends plugin {
      */
     async initCloud() {
         try {
-            const { api, available } = await initCloudAPI();
+            const { api, available } = await initCloudAPI(this.e.bot);
             this.cloudAPI = api;
             this.cloudAvailable = available;
             
@@ -648,7 +648,14 @@ export class MCUser extends plugin {
                             logger.info(`[MCTool] 尝试3D渲染，URL: ${render3DUrl}`);
                             
                             try {
-                                const response = await fetch(render3DUrl);
+                                // 添加60秒超时
+                                const response = await Promise.race([
+                                    fetch(render3DUrl),
+                                    new Promise((_, reject) => 
+                                        setTimeout(() => reject(new Error('3D渲染超时（60秒）')), 60000)
+                                    )
+                                ]);
+                                
                                 if (response.ok) {
                                     logger.info(`[MCTool] 3D渲染成功: ${binding.username}`);
                                     skinUrl = [render3DUrl];

@@ -25,10 +25,11 @@ let cloudAPIInstance = null;
 let cloudAPIInitialized = false;
 
 /**
- * 初始化并获取cloudAPI实例
+ * 初始化云端API
+ * @param {import('icqq').Client} Bot 机器人实例
  * @returns {Promise<{api: CloudAPI, available: boolean}>} 云API实例和可用状态
  */
-async function initCloudAPI() {
+async function initCloudAPI(Bot) {
     if (cloudAPIInitialized) {
         return {
             api: cloudAPIInstance,
@@ -36,21 +37,42 @@ async function initCloudAPI() {
         };
     }
 
+    if (!Bot?.uin) {
+        logger.error('[MCTool] 初始化云端API失败: Bot实例未定义或缺少uin');
+        cloudAPIInitialized = true;
+        cloudAPIAvailable = false;
+        return {
+            api: null,
+            available: false
+        };
+    }
+
     try {
         cloudAPIInstance = new CloudAPI();
-        const hasToken = await cloudAPIInstance.loadToken();
-        
-        if (!hasToken) {
-            logger.info('[MCTool] 未找到Token，云端API功能将不可用');
-            return { api: null, available: false };
+        await cloudAPIInstance.init();
+
+        if (!cloudAPIInstance.available) {
+            const botId = Bot.uin.toString();
+            logger.info(`[MCTool] 未找到有效的Token，尝试使用QQ号(${botId})进行注册...`);
+            await cloudAPIInstance.register(botId);
+            logger.info('[MCTool] 云端API注册/恢复成功');
         }
 
-        logger.info('[MCTool] Token验证成功，云端API功能已启用');
         cloudAPIInitialized = true;
-        return { api: cloudAPIInstance, available: true };
+        cloudAPIAvailable = cloudAPIInstance.available;
+        
+        return {
+            api: cloudAPIInstance,
+            available: cloudAPIInstance.available
+        };
     } catch (err) {
-        logger.error('[MCTool] 云端API初始化失败，相关功能将不可用:', err.message);
-        return { api: null, available: false };
+        logger.error(`[MCTool] 云端API初始化失败: ${err.message}`);
+        cloudAPIInitialized = true;
+        cloudAPIAvailable = false;
+        return {
+            api: null,
+            available: false
+        };
     }
 }
 

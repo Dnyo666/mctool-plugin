@@ -38,7 +38,7 @@ export class MCPush extends plugin {
         // 设置初始化标志
         isInitialized = true;
 
-        logger.mark('[MCTool] 初始化推送服务...');
+        logger.debug('[MCTool] 初始化推送服务...');
         
         // 获取配置
         const config = getConfig();
@@ -83,7 +83,7 @@ export class MCPush extends plugin {
         Data.write('changes', {});
 
         // 启动时进行一次完整检查
-        logger.mark('[MCTool] 开始启动时状态检查...');
+        logger.debug('[MCTool] 开始启动时状态检查...');
         await this.checkInitialStatus();
 
         // 启动定时任务
@@ -131,7 +131,7 @@ export class MCPush extends plugin {
                 }
                 this.isChecking = true;
 
-                logger.mark(`[MCTool] 开始执行定时检查任务... (cron: ${cron})`);
+                logger.debug(`[MCTool] 开始执行定时检查任务... (cron: ${cron})`);
                 try {
                     await this.checkServerStatus();
                 } catch (error) {
@@ -143,9 +143,9 @@ export class MCPush extends plugin {
 
             if (job) {
                 const nextInvocation = job.nextInvocation();
-                logger.mark(`[MCTool] 定时任务已启动`);
-                logger.mark(`[MCTool] cron表达式: ${cron}`);
-                logger.mark(`[MCTool] 下次执行时间: ${nextInvocation}`);
+                logger.debug(`[MCTool] 定时任务已启动`);
+                logger.debug(`[MCTool] cron表达式: ${cron}`);
+                logger.debug(`[MCTool] 下次执行时间: ${nextInvocation}`);
                 
                 // 输出更详细的调度信息
                 const parts = [];
@@ -156,7 +156,7 @@ export class MCPush extends plugin {
                 if (scheduleRule.month !== '*') parts.push(`${scheduleRule.month} 月`);
                 if (scheduleRule.dayOfWeek !== '*') parts.push(`星期 ${scheduleRule.dayOfWeek}`);
                 
-                logger.mark(`[MCTool] 执行规则: ${parts.length > 0 ? parts.join('，') : '每分钟'}`);
+                logger.debug(`[MCTool] 执行规则: ${parts.length > 0 ? parts.join('，') : '每分钟'}`);
             } else {
                 logger.error(`[MCTool] 定时任务创建失败，scheduleRule: ${JSON.stringify(scheduleRule)}`);
                 throw new Error('定时任务创建失败');
@@ -172,7 +172,7 @@ export class MCPush extends plugin {
             logger.error(`[MCTool] 错误详情: ${error.stack}`);
         }
 
-        logger.mark('[MCTool] 推送服务初始化完成');
+        logger.debug('[MCTool] 推送服务初始化完成');
     }
 
     async checkInitialStatus() {

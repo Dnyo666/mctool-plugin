@@ -52,7 +52,7 @@ export class MCTool extends plugin {
      */
     async initCloud() {
         try {
-            const { api, available } = await initCloudAPI();
+            const { api, available } = await initCloudAPI(this.e.bot);
             this.cloudAPI = api;
             this.cloudAvailable = available;
             return this.cloudAvailable;
