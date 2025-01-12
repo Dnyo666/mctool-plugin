@@ -68,15 +68,80 @@ export class MCUser extends plugin {
         const mojangIndex = Data.read('mojang_username_index') || {};
         const littleSkinIndex = Data.read('littleskin_username_index') || {};
 
-        // 保存初始化的数据
-        Data.write('mojang_bindings', mojangBindings);
-        Data.write('littleskin_bindings', littleSkinBindings);
-        Data.write('mojang_username_index', mojangIndex);
-        Data.write('littleskin_username_index', littleSkinIndex);
+        // 检查并迁移旧版数据
+        const oldBindings = Data.read('user_bindings');
+        const oldIndex = Data.read('username_index');
+        
+        if (oldBindings) {
+            logger.info('[MCTool] 检测到旧版绑定数据，开始迁移...');
+            const now = new Date().toISOString();
+            
+            // 迁移旧数据到新格式
+            for (const [qqNumber, bindings] of Object.entries(oldBindings)) {
+                if (!mojangBindings[qqNumber]) {
+                    mojangBindings[qqNumber] = [];
+                }
+                
+                for (const binding of bindings) {
+                    // 转换时间格式
+                    const createTime = binding.bindTime ? new Date(binding.bindTime).toISOString() : now;
+                    
+                    // 添加新格式的绑定数据
+                    mojangBindings[qqNumber].push({
+                        username: binding.username,
+                        uuid: binding.uuid,
+                        raw_uuid: binding.raw_uuid,
+                        createTime: createTime,
+                        updateTime: createTime,
+                        isBound: true,
+                        type: 'mojang'
+                    });
+                    
+                    // 更新索引
+                    mojangIndex[binding.username.toLowerCase()] = qqNumber;
+                }
+            }
+            
+            // 保存迁移后的数据
+            Data.write('mojang_bindings', mojangBindings);
+            Data.write('mojang_username_index', mojangIndex);
+            
+            // 删除旧数据文件
+            Data.write('user_bindings', null);
+            Data.write('username_index', null);
+            
+            logger.info('[MCTool] 旧版数据迁移完成');
+            
+            // 如果云端可用，同步迁移后的数据
+            if (this.cloudAvailable && this.cloudAPI) {
+                this.syncLocalToCloud().catch(err => {
+                    logger.error(`[MCTool] 迁移后同步云端失败: ${err.message}`);
+                });
+            }
+        }
 
-        // 删除旧数据文件
-        Data.write('user_bindings', null);
-        Data.write('username_index', null);
+        // 修正现有数据的时间字段格式
+        let hasChanges = false;
+        for (const [qqNumber, bindings] of Object.entries(mojangBindings)) {
+            for (const binding of bindings) {
+                if (binding.bindTime) {
+                    binding.createTime = new Date(binding.bindTime).toISOString();
+                    delete binding.bindTime;
+                    hasChanges = true;
+                }
+                if (binding.unbindTime) {
+                    binding.updateTime = new Date(binding.unbindTime).toISOString();
+                    delete binding.unbindTime;
+                    hasChanges = true;
+                }
+            }
+        }
+
+        // 如果有修改，保存更新后的数据
+        if (hasChanges) {
+            Data.write('mojang_bindings', mojangBindings);
+            logger.info('[MCTool] 已更新绑定数据的时间字段格式');
+        }
     }
 
     /**
@@ -703,7 +768,7 @@ export class MCUser extends plugin {
                         ...binding,
                         skinUrl: Array.isArray(skinUrl) ? skinUrl : [skinUrl],
                         avatarUrl,
-                        bindTime: new Date(binding.bindTime).toLocaleString('zh-CN', {
+                        bindTime: new Date(binding.createTime).toLocaleString('zh-CN', {
                             year: 'numeric',
                             month: '2-digit',
                             day: '2-digit',
@@ -719,7 +784,7 @@ export class MCUser extends plugin {
                         ...binding,
                         skinUrl: [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`],
                         avatarUrl: `https://api.mineatar.io/face/${binding.raw_uuid}`,
-                        bindTime: new Date(binding.bindTime).toLocaleString('zh-CN', {
+                        bindTime: new Date(binding.createTime).toLocaleString('zh-CN', {
                             year: 'numeric',
                             month: '2-digit',
                             day: '2-digit',
@@ -776,7 +841,7 @@ export class MCUser extends plugin {
                                 <div class="account-username">${account.username}</div>
                                 <div class="account-details">
                                     <div>UUID: ${account.uuid}</div>
-                                    <div>绑定时间: ${account.bindTime}</div>
+                                    <div>绑定时间: ${account.createTime}</div>
                                 </div>
                             </div>
                         </div>
