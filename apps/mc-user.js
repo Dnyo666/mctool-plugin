@@ -54,94 +54,31 @@ export class MCUser extends plugin {
         this.cloudAPI = null;
         this.cloudAvailable = false;
 
-        // 初始化数据存储
-        this.initDataStorage();
+        // 异步初始化数据存储
+        this.init();
+    }
+
+    /**
+     * 异步初始化
+     */
+    async init() {
+        await this.initDataStorage();
     }
 
     /**
      * 初始化数据存储
      */
-    initDataStorage() {
-        // 确保分类数据存在
+    async initDataStorage() {
+        // 初始化数据结构
         const mojangBindings = Data.read('mojang_bindings') || {};
         const littleSkinBindings = Data.read('littleskin_bindings') || {};
         const mojangIndex = Data.read('mojang_username_index') || {};
         const littleSkinIndex = Data.read('littleskin_username_index') || {};
 
-        // 检查并迁移旧版数据
-        const oldBindings = Data.read('user_bindings');
-        const oldIndex = Data.read('username_index');
-        
-        if (oldBindings) {
-            logger.info('[MCTool] 检测到旧版绑定数据，开始迁移...');
-            const now = new Date().toISOString();
-            
-            // 迁移旧数据到新格式
-            for (const [qqNumber, bindings] of Object.entries(oldBindings)) {
-                if (!mojangBindings[qqNumber]) {
-                    mojangBindings[qqNumber] = [];
-                }
-                
-                for (const binding of bindings) {
-                    // 转换时间格式
-                    const createTime = binding.bindTime ? new Date(binding.bindTime).toISOString() : now;
-                    
-                    // 添加新格式的绑定数据
-                    mojangBindings[qqNumber].push({
-                        username: binding.username,
-                        uuid: binding.uuid,
-                        raw_uuid: binding.raw_uuid,
-                        createTime: createTime,
-                        updateTime: createTime,
-                        isBound: true,
-                        type: 'mojang'
-                    });
-                    
-                    // 更新索引
-                    mojangIndex[binding.username.toLowerCase()] = qqNumber;
-                }
-            }
-            
-            // 保存迁移后的数据
-            Data.write('mojang_bindings', mojangBindings);
-            Data.write('mojang_username_index', mojangIndex);
-            
-            // 删除旧数据文件
-            Data.write('user_bindings', null);
-            Data.write('username_index', null);
-            
-            logger.info('[MCTool] 旧版数据迁移完成');
-            
-            // 如果云端可用，同步迁移后的数据
-            if (this.cloudAvailable && this.cloudAPI) {
-                this.syncLocalToCloud().catch(err => {
-                    logger.error(`[MCTool] 迁移后同步云端失败: ${err.message}`);
-                });
-            }
-        }
-
-        // 修正现有数据的时间字段格式
-        let hasChanges = false;
-        for (const [qqNumber, bindings] of Object.entries(mojangBindings)) {
-            for (const binding of bindings) {
-                if (binding.bindTime) {
-                    binding.createTime = new Date(binding.bindTime).toISOString();
-                    delete binding.bindTime;
-                    hasChanges = true;
-                }
-                if (binding.unbindTime) {
-                    binding.updateTime = new Date(binding.unbindTime).toISOString();
-                    delete binding.unbindTime;
-                    hasChanges = true;
-                }
-            }
-        }
-
-        // 如果有修改，保存更新后的数据
-        if (hasChanges) {
-            Data.write('mojang_bindings', mojangBindings);
-            logger.info('[MCTool] 已更新绑定数据的时间字段格式');
-        }
+        Data.write('mojang_bindings', mojangBindings);
+        Data.write('littleskin_bindings', littleSkinBindings);
+        Data.write('mojang_username_index', mojangIndex);
+        Data.write('littleskin_username_index', littleSkinIndex);
     }
 
     /**
@@ -1180,6 +1117,156 @@ export class MCUser extends plugin {
         } catch (error) {
             logger.error(`[MCTool] 查询失败: ${error.message}`);
             e.reply(`查询失败: ${error.message}`);
+            return false;
+        }
+    }
+
+    /**
+     * 生成玩家头像
+     * @param {*} e 消息事件
+     */
+    async generateAvatar(e) {
+        try {
+            const type = e.msg.match(/^#?[Mm][Cc]头像\s*(全身|半身|头部)?/)[1] || '头部';
+            const username = e.msg.match(/^#?[Mm][Cc]头像\s*(全身|半身|头部)?\s*(.+)?$/)?.[2]?.trim();
+
+            // 获取要处理的用户列表
+            let users = [];
+            if (username) {
+                // 如果指定了用户名，直接使用
+                users.push({ username });
+            } else {
+                // 初始化云端API
+                await this.initCloud();
+                
+                // 优先使用云端数据
+                if (this.cloudAvailable) {
+                    try {
+                        const response = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
+                            headers: {
+                                'X-Bot-Token': this.cloudAPI.token
+                            }
+                        });
+                        const data = Array.isArray(response) ? response : (response.data || []);
+                        users = data.filter(b => b.isBound === true);
+                    } catch (err) {
+                        logger.error(`[MCTool] 云端查询失败: ${err.message}`);
+                        // 云端查询失败时，使用本地数据
+                        const bindings = Data.read('mojang_bindings') || {};
+                        users = bindings[e.user_id] || [];
+                    }
+                } else {
+                    // 云端不可用时，使用本地数据
+                    const bindings = Data.read('mojang_bindings') || {};
+                    users = bindings[e.user_id] || [];
+                }
+
+                if (!users || users.length === 0) {
+                    e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 mojang <正版用户名> 进行绑定');
+                    return false;
+                }
+            }
+
+            // 转换类型为API参数
+            const avatarType = {
+                '全身': 'full',
+                '头部': 'head',
+                '半身': 'big_head'
+            }[type];
+
+            let hasError = false;
+            // 处理每个用户
+            for (const user of users) {
+                try {
+                    logger.info(`[MCTool] 正在生成 ${user.username} 的${type}图像...`);
+                    
+                    // 构建请求URL
+                    const url = `https://mcacg.qxml.ltd/generate/account?player=${encodeURIComponent(user.username)}&avatar_type=${encodeURIComponent(avatarType)}`;
+                    logger.info(`[MCTool] 发送请求: ${url}`);
+
+                    // 发送生成请求
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    // 记录响应状态
+                    logger.info(`[MCTool] API响应状态: ${response.status} ${response.statusText}`);
+
+                    if (!response.ok) {
+                        const errorText = await response.text().catch(() => '无法获取错误详情');
+                        logger.error(`[MCTool] API错误响应: ${errorText}`);
+                        throw new Error(`生成失败: ${response.status} ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    logger.info(`[MCTool] API响应数据: ${JSON.stringify(result)}`);
+
+                    if (!result.success) {
+                        throw new Error(result.message || '生成失败: API返回失败状态');
+                    }
+
+                    if (!result.data?.image) {
+                        throw new Error('生成失败: API返回数据缺少图片信息');
+                    }
+
+                    // 将Base64转换为图片并发送
+                    const base64Data = result.data.image;
+                    // 检查base64数据是否有效
+                    if (!base64Data.match(/^[A-Za-z0-9+/=]+$/)) {
+                        throw new Error('生成失败: 无效的图片数据');
+                    }
+
+                    const imageData = Buffer.from(base64Data, 'base64');
+                    if (imageData.length === 0) {
+                        throw new Error('生成失败: 图片数据为空');
+                    }
+
+                    // 确保临时目录存在
+                    const tempDir = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'temp');
+                    if (!fs.existsSync(tempDir)) {
+                        fs.mkdirSync(tempDir, { recursive: true });
+                    }
+
+                    // 保存为临时文件
+                    const tempFile = path.join(tempDir, `${user.username}_${type}_${Date.now()}.png`);
+                    fs.writeFileSync(tempFile, imageData);
+
+                    // 检查生成的文件
+                    const fileStats = fs.statSync(tempFile);
+                    if (fileStats.size === 0) {
+                        throw new Error('生成失败: 生成的图片文件为空');
+                    }
+
+                    logger.info(`[MCTool] 成功生成图片: ${tempFile} (${fileStats.size} 字节)`);
+
+                    // 发送图片
+                    await e.reply([
+                        `${user.username} 的${type}图像：\n`,
+                        segment.image(`file:///${tempFile}`)
+                    ]);
+
+                    // 删除临时文件
+                    fs.unlinkSync(tempFile);
+                } catch (error) {
+                    hasError = true;
+                    logger.error(`[MCTool] 生成 ${user.username} 的头像失败:`, error);
+                    // 不再立即发送错误消息，而是继续处理其他用户
+                    continue;
+                }
+            }
+
+            // 如果所有用户都处理失败，才发送一次错误消息
+            if (hasError && users.length === 1) {
+                e.reply('获取头像失败，请稍后重试');
+            }
+
+            return true;
+        } catch (error) {
+            logger.error('[MCTool] 生成头像失败:', error);
+            e.reply('生成头像失败，请稍后重试');
             return false;
         }
     }

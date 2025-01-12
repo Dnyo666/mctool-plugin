@@ -28,7 +28,7 @@ let cloudAPIInitialized = false;
  * 初始化并获取cloudAPI实例
  * @returns {Promise<{api: CloudAPI, available: boolean}>} 云API实例和可用状态
  */
-export async function initCloudAPI() {
+async function initCloudAPI() {
     if (cloudAPIInitialized) {
         return {
             api: cloudAPIInstance,
@@ -55,7 +55,7 @@ export async function initCloudAPI() {
 }
 
 // 导出一个标志来表示云API是否可用
-export let cloudAPIAvailable = false;
+let cloudAPIAvailable = false;
 
 /**
  * 初始化配置文件
@@ -90,7 +90,7 @@ function initConfig() {
  * 获取配置
  * @returns {object} 配置对象
  */
-export function getConfig() {
+function getConfig() {
     try {
         // 初始化配置文件
         if (!initConfig()) {
@@ -165,6 +165,9 @@ class DataManager {
         const config = getConfig();
         this.dataPath = path.join(YUNZAI_DIR, config.dataPath || 'data/mctool');
         this.ensureDirectories();
+        
+        // 执行数据迁移
+        this.migrateData();
         
         // 初始化默认数据文件
         const defaultFiles = ['servers', 'current', 'historical', 'changes', 'subscriptions', 'verification', 'verification_requests'];
@@ -407,10 +410,139 @@ class DataManager {
             this.write('verification_requests', requests);
         }
     }
+
+    /**
+     * 执行数据迁移
+     */
+    migrateData() {
+        logger.info('[MCTool] 开始检查数据迁移状态...');
+        
+        // 检查旧版数据文件是否存在
+        const oldBindingsPath = path.join(this.dataPath, 'user_bindings.json');
+        const oldIndexPath = path.join(this.dataPath, 'username_index.json');
+        
+        // 如果旧版文件都不存在，标记为已迁移并返回
+        if (!fs.existsSync(oldBindingsPath) && !fs.existsSync(oldIndexPath)) {
+            logger.info('[MCTool] 未检测到旧版数据文件，无需迁移');
+            this.write('migration_status', { completed: true, timestamp: new Date().toISOString() });
+            return;
+        }
+
+        // 检查迁移状态
+        const migrationStatus = this.read('migration_status');
+        if (migrationStatus && migrationStatus.completed) {
+            logger.info('[MCTool] 数据已经完成迁移，跳过迁移步骤');
+            return;
+        }
+
+        logger.info('[MCTool] 开始执行数据迁移...');
+
+        // 确保分类数据存在
+        const mojangBindings = this.read('mojang_bindings') || {};
+        const mojangIndex = this.read('mojang_username_index') || {};
+        
+        let oldBindings = {};
+        
+        // 读取旧数据文件
+        if (fs.existsSync(oldBindingsPath)) {
+            try {
+                const content = fs.readFileSync(oldBindingsPath, 'utf8');
+                oldBindings = JSON.parse(content) || {};
+                logger.info(`[MCTool] 成功读取旧版绑定数据，包含 ${Object.keys(oldBindings).length} 个用户记录`);
+            } catch (err) {
+                logger.error(`[MCTool] 读取旧版绑定数据失败: ${err.message}`);
+                return;
+            }
+        }
+        
+        // 只有当旧数据存在且不为空时才进行迁移
+        if (Object.keys(oldBindings).length > 0) {
+            logger.info('[MCTool] 开始迁移用户数据...');
+            const now = new Date().toISOString();
+            let migratedCount = 0;
+            
+            // 迁移旧数据到新格式
+            for (const [qqNumber, bindings] of Object.entries(oldBindings)) {
+                if (!mojangBindings[qqNumber]) {
+                    mojangBindings[qqNumber] = [];
+                }
+                
+                for (const binding of bindings) {
+                    // 转换时间格式
+                    const createTime = binding.bindTime ? new Date(binding.bindTime).toISOString() : now;
+                    
+                    // 添加新格式的绑定数据
+                    mojangBindings[qqNumber].push({
+                        username: binding.username,
+                        uuid: binding.uuid,
+                        raw_uuid: binding.raw_uuid,
+                        createTime: createTime,
+                        updateTime: createTime,
+                        isBound: true,
+                        type: 'mojang'
+                    });
+                    
+                    // 更新索引
+                    mojangIndex[binding.username.toLowerCase()] = qqNumber;
+                    migratedCount++;
+                }
+            }
+            
+            // 保存迁移后的数据
+            logger.info(`[MCTool] 成功迁移 ${migratedCount} 条绑定记录`);
+            this.write('mojang_bindings', mojangBindings);
+            this.write('mojang_username_index', mojangIndex);
+            
+            // 删除旧数据文件
+            try {
+                if (fs.existsSync(oldBindingsPath)) {
+                    fs.unlinkSync(oldBindingsPath);
+                    logger.info('[MCTool] 已删除旧版绑定数据文件');
+                }
+                
+                if (fs.existsSync(oldIndexPath)) {
+                    fs.unlinkSync(oldIndexPath);
+                    logger.info('[MCTool] 已删除旧版索引文件');
+                }
+            } catch (err) {
+                logger.error(`[MCTool] 删除旧数据文件失败: ${err.message}`);
+            }
+        }
+
+        // 修正现有数据的时间字段格式
+        let hasChanges = false;
+        for (const [qqNumber, bindings] of Object.entries(mojangBindings)) {
+            for (const binding of bindings) {
+                if (binding.bindTime) {
+                    binding.createTime = new Date(binding.bindTime).toISOString();
+                    delete binding.bindTime;
+                    hasChanges = true;
+                }
+                if (binding.unbindTime) {
+                    binding.updateTime = new Date(binding.unbindTime).toISOString();
+                    delete binding.unbindTime;
+                    hasChanges = true;
+                }
+            }
+        }
+
+        // 如果有修改，保存更新后的数据
+        if (hasChanges) {
+            this.write('mojang_bindings', mojangBindings);
+            logger.info('[MCTool] 已更新绑定数据的时间字段格式');
+        }
+
+        // 标记迁移完成
+        this.write('migration_status', {
+            completed: true,
+            timestamp: new Date().toISOString()
+        });
+        logger.info('[MCTool] 数据迁移完成');
+    }
 }
 
 // 权限检查
-export async function checkGroupAdmin(e) {
+async function checkGroupAdmin(e) {
     if (!e.isGroup) {
         e.reply('该功能仅群聊使用')
         return false
@@ -621,7 +753,7 @@ function parseServerStatus(data, parser) {
  * @param {number} retryCount 重试次数
  * @returns {Promise<Object>} 服务器状态
  */
-export async function queryServerStatus(address, api, retryCount = 0) {
+async function queryServerStatus(address, api, retryCount = 0) {
     try {
         if (!address || !api) {
             throw new Error('Invalid parameters');
@@ -734,7 +866,7 @@ function getArrayValue(obj, path) {
  * @param {string} username 玩家名
  * @returns {Promise<{uuid: string|null, raw_id: string|null}>} UUID 信息
  */
-export async function getPlayerUUID(username) {
+async function getPlayerUUID(username) {
     try {
         const response = await fetch(`https://playerdb.co/api/player/minecraft/${username}`);
         if (!response.ok) {
@@ -755,5 +887,16 @@ export async function getPlayerUUID(username) {
     }
 }
 
-// 导出实例
-export const Data = new DataManager() 
+// 创建实例
+const Data = new DataManager();
+
+// 导出实例和函数
+export {
+    Data,
+    getConfig,
+    getPlayerUUID,
+    cloudAPIAvailable,
+    checkGroupAdmin,
+    queryServerStatus,
+    initCloudAPI
+} 
