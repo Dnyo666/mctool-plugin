@@ -6,6 +6,7 @@ import HttpsProxyAgent from 'https-proxy-agent'
 import logger from '../models/logger.js'
 import YAML from 'yaml'
 import lodash from 'lodash'
+import { CloudAPI } from '../lib/cloud-api.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -18,6 +19,43 @@ const DEFAULT_CONFIG_FILE = path.join(PLUGIN_DIR, 'config', 'default_config.yaml
 
 // 配置管理
 let configCache = null
+
+// 使用单例模式管理cloudAPI
+let cloudAPIInstance = null;
+let cloudAPIInitialized = false;
+
+/**
+ * 初始化并获取cloudAPI实例
+ * @returns {Promise<{api: CloudAPI, available: boolean}>} 云API实例和可用状态
+ */
+export async function initCloudAPI() {
+    if (cloudAPIInitialized) {
+        return {
+            api: cloudAPIInstance,
+            available: cloudAPIInstance && cloudAPIInstance.available
+        };
+    }
+
+    try {
+        cloudAPIInstance = new CloudAPI();
+        const hasToken = await cloudAPIInstance.loadToken();
+        
+        if (!hasToken) {
+            logger.info('[MCTool] 未找到Token，云端API功能将不可用');
+            return { api: null, available: false };
+        }
+
+        logger.info('[MCTool] Token验证成功，云端API功能已启用');
+        cloudAPIInitialized = true;
+        return { api: cloudAPIInstance, available: true };
+    } catch (err) {
+        logger.error('[MCTool] 云端API初始化失败，相关功能将不可用:', err.message);
+        return { api: null, available: false };
+    }
+}
+
+// 导出一个标志来表示云API是否可用
+export let cloudAPIAvailable = false;
 
 /**
  * 初始化配置文件

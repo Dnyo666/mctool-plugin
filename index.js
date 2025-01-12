@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import chalk from 'chalk'
+import logger from './models/logger.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -38,7 +39,8 @@ const pluginOrder = [
     { name: 'mc-user', file: './apps/mc-user.js' },
     { name: 'help', file: './apps/help.js' },
     { name: 'update', file: './apps/update.js' },
-    { name: 'mc-mod', file: './apps/mc-mod.js' }
+    { name: 'mc-mod', file: './apps/mc-mod.js' },
+    { name: 'mc-tool', file: './apps/mc-tool.js' }
 ]
 
 for (const plugin of pluginOrder) {
