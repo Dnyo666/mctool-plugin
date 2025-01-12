@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import chalk from 'chalk'
+import logger from './models/logger.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -19,10 +20,11 @@ const startTime = Date.now()
 let successCount = 0
 let failureCount = 0
 
-// 预加载工具模块
+// 预加载工具模块，确保数据迁移在其他模块加载前完成
 try {
-    await import('./apps/mc-utils.js')
+    const utils = await import('./apps/mc-utils.js')
     logger.info('[MCTool] 工具模块加载完成')
+    // Data 实例在导入时已经创建，会自动执行数据迁移
 } catch (err) {
     logger.error('[MCTool] 工具模块加载失败:', err)
     failureCount++
@@ -38,7 +40,8 @@ const pluginOrder = [
     { name: 'mc-user', file: './apps/mc-user.js' },
     { name: 'help', file: './apps/help.js' },
     { name: 'update', file: './apps/update.js' },
-    { name: 'mc-mod', file: './apps/mc-mod.js' }
+    { name: 'mc-mod', file: './apps/mc-mod.js' },
+    { name: 'mc-tool', file: './apps/mc-tool.js' }
 ]
 
 for (const plugin of pluginOrder) {

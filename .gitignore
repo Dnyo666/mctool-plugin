@@ -2,7 +2,7 @@ test
 **/test.js
 **/test.ts
 node_modules
-config/config
+config/config.yaml
 data
 data.db
 temp
