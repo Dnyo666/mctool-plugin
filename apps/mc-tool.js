@@ -70,115 +70,16 @@ export class MCTool extends plugin {
      */
     async checkServiceStatus(e) {
         try {
-            logger.info('[MCTool] 正在检查服务状态...');
+            await this.reply('[MCTool] 正在检查服务状态...');
 
-            // 获取配置
+            // 获取本地配置
             const config = getConfig();
-            const skin = config?.skin || {};
-            
-            // 检查行走视图渲染状态
-            let walkingViewStatus = '未启用';
-            let walkingViewServer = '';
-            if (skin.use3D && skin.renderType === 1) {
-                try {
-                    const server = skin.render1?.server || 'https://skin2.qxml.ltd';
-                    walkingViewServer = server;
-                    const response = await fetch('https://skin2.qxml.ltd/docs#/');
-                    
-                    if (response.ok) {
-                        walkingViewStatus = '运行正常';
-                    } else {
-                        walkingViewStatus = '状态异常';
-                    }
-                } catch (error) {
-                    logger.error('[MCTool] 检查行走视图渲染状态失败:', error);
-                    walkingViewStatus = '连接失败';
-                }
-            }
-
-            // 检查站立视图渲染状态
-            let standingViewStatus = '未启用';
-            let standingViewServer = '';
-            if (skin.use3D && (skin.renderType === 2 || skin.renderType === 1)) {
-                try {
-                    const server = skin.render2?.server || 'http://skin.qxml.ltd';
-                    standingViewServer = server;
-                    const healthResponse = await fetch(`${server}/health`);
-                    const healthData = await healthResponse.json();
-                    
-                    if (!healthResponse.ok || healthData?.status !== 'ok') {
-                        standingViewStatus = '状态异常';
-                    } else {
-                        standingViewStatus = '运行正常';
-                    }
-                } catch (error) {
-                    logger.error('[MCTool] 检查站立视图渲染状态失败:', error);
-                    standingViewStatus = '连接失败';
-                }
-            }
-            
-            // 检查公用头像API状态
-            let avatarStatus = '异常';
-            try {
-                const response = await fetch('https://mcacg.qxml.ltd/docs#/', {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'text/html'
-                    }
-                });
-                
-                if (response.ok) {
-                    avatarStatus = '运行正常';
-                }
-            } catch (error) {
-                logger.error('[MCTool] 检查头像服务状态失败:', error);
-                avatarStatus = '连接失败';
-            }
-
-            // 检查Modrinth API状态
-            let modrinthStatus = '异常';
-            try {
-                const response = await fetch(`${API_CONFIG.modrinth.baseUrl}/search`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': API_CONFIG.modrinth.token
-                    }
-                });
-                
-                if (response.ok) {
-                    modrinthStatus = '运行正常';
-                } else {
-                    modrinthStatus = `状态异常 (${response.status})`;
-                }
-            } catch (error) {
-                logger.error('[MCTool] 检查Modrinth API状态失败:', error);
-                modrinthStatus = '连接失败';
-            }
-
-            // 检查CurseForge API状态
-            let curseforgeStatus = '异常';
-            try {
-                const response = await fetch(`${API_CONFIG.curseforge.baseUrl}/games`, {
-                    method: 'GET',
-                    headers: {
-                        'x-api-key': API_CONFIG.curseforge.token
-                    }
-                });
-                
-                if (response.ok) {
-                    curseforgeStatus = '运行正常';
-                } else {
-                    curseforgeStatus = `状态异常 (${response.status})`;
-                }
-            } catch (error) {
-                logger.error('[MCTool] 检查CurseForge API状态失败:', error);
-                curseforgeStatus = '连接失败';
-            }
+            const localBotId = this.e.bot.uin.toString();
 
             // 检查云端API状态
             let cloudStatus = '未知';
-            let tokenStatus = '未知';
-            let botId = '未知';
+            let tokenStatus = '未验证';
+            let botId = localBotId;  // 默认使用本地Bot ID
             
             try {
                 // 初始化云端API
@@ -191,10 +92,13 @@ export class MCTool extends plugin {
                         
                         cloudStatus = '运行正常';
                         tokenStatus = '验证通过';
-                        botId = data.botId;
+                        botId = data.botId || localBotId;
                     } catch (error) {
                         if (error.message.includes('Token未初始化')) {
                             cloudStatus = '运行正常';
+                            tokenStatus = '未验证';
+                        } else if (error.message.includes('云端API暂时不可用') || error.message.includes('云端API连接失败')) {
+                            cloudStatus = '不可用';
                             tokenStatus = '未验证';
                         } else {
                             cloudStatus = '状态异常';
@@ -211,13 +115,51 @@ export class MCTool extends plugin {
                 cloudStatus = '连接失败';
                 tokenStatus = '未验证';
             }
+
+            // 检查各项服务状态
+            let render1Status, render2Status, avatarStatus, modrinthStatus, curseforgeStatus;
             
-            // 发送状态信息
-            const message = [
+            try {
+                render1Status = await this.checkRender1Service();
+            } catch (error) {
+                logger.error('[MCTool] 检查行走视图渲染服务失败:', error);
+                render1Status = '检查失败';
+            }
+
+            try {
+                render2Status = await this.checkRender2Service();
+            } catch (error) {
+                logger.error('[MCTool] 检查站立视图渲染服务失败:', error);
+                render2Status = '检查失败';
+            }
+
+            try {
+                avatarStatus = await this.checkAvatarService();
+            } catch (error) {
+                logger.error('[MCTool] 检查头像服务失败:', error);
+                avatarStatus = '检查失败';
+            }
+
+            try {
+                modrinthStatus = await this.checkModrinthAPI();
+            } catch (error) {
+                logger.error('[MCTool] 检查Modrinth API失败:', error);
+                modrinthStatus = '检查失败';
+            }
+
+            try {
+                curseforgeStatus = await this.checkCurseForgeAPI();
+            } catch (error) {
+                logger.error('[MCTool] 检查CurseForge API失败:', error);
+                curseforgeStatus = '检查失败';
+            }
+
+            // 生成状态报告
+            const report = [
                 '=== MCTool 服务状态检查结果 ===\n',
                 '【皮肤渲染服务】',
-                `行走视图渲染：${walkingViewStatus}${walkingViewServer ? ` (${walkingViewServer})` : ''}`,
-                `站立视图渲染：${standingViewStatus}${standingViewServer ? ` (${standingViewServer})` : ''}`,
+                `行走视图渲染：${render1Status}`,
+                `站立视图渲染：${render2Status}`,
                 `公用头像服务：${avatarStatus}\n`,
                 '【Mod API服务】',
                 `Modrinth API：${modrinthStatus}`,
@@ -227,14 +169,113 @@ export class MCTool extends plugin {
                 `Token验证：${tokenStatus}`,
                 `Bot ID：${botId}`
             ].join('\n');
-            
-            e.reply(message);
-            
+
+            await this.reply(report);
             return true;
-        } catch (error) {
-            logger.error('[MCTool] 检查服务状态失败:', error);
-            e.reply('检查服务状态失败，请稍后重试');
+        } catch (err) {
+            logger.error(`[MCTool] 检查服务状态失败: ${err.message}`);
+            await this.reply('检查服务状态失败，请稍后重试');
             return false;
+        }
+    }
+
+    async checkRender1Service() {
+        try {
+            const config = getConfig();
+            const skin = config?.skin || {};
+            
+            if (!skin.use3D || skin.renderType !== 1) {
+                return '未启用';
+            }
+
+            const server = skin.render1?.server || 'https://skin2.qxml.ltd';
+            const response = await fetch('https://skin2.qxml.ltd/docs#/');
+            
+            if (response.ok) {
+                return `运行正常 (${server})`;
+            } else {
+                return `状态异常 (${server})`;
+            }
+        } catch (error) {
+            logger.error('[MCTool] 检查行走视图渲染状态失败:', error);
+            return '连接失败';
+        }
+    }
+
+    async checkRender2Service() {
+        try {
+            const config = getConfig();
+            const skin = config?.skin || {};
+            const server = skin.render2?.server || 'http://127.0.0.1:3006';
+            
+            if (!skin.use3D || (skin.renderType !== 2 && skin.renderType !== 1)) {
+                return '未启用';
+            }
+
+            try {
+                const healthResponse = await fetch(`${server}/health`);
+                const healthData = await healthResponse.json();
+                
+                if (!healthResponse.ok || healthData?.status !== 'ok') {
+                    return `状态异常 (${server})`;
+                } else {
+                    return `运行正常 (${server})`;
+                }
+            } catch (error) {
+                logger.error(`[MCTool] 检查站立视图渲染状态失败: ${error}`);
+                return `连接失败 (${server})`;
+            }
+        } catch (error) {
+            logger.error(`[MCTool] 检查站立视图渲染配置失败: ${error}`);
+            return '配置错误';
+        }
+    }
+
+    async checkAvatarService() {
+        try {
+            const response = await fetch('https://mcacg.qxml.ltd/docs#/', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/html'
+                }
+            });
+            
+            return response.ok ? '运行正常' : '状态异常';
+        } catch (error) {
+            logger.error('[MCTool] 检查头像服务状态失败:', error);
+            return '连接失败';
+        }
+    }
+
+    async checkModrinthAPI() {
+        try {
+            const response = await fetch(`${API_CONFIG.modrinth.baseUrl}/search`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': API_CONFIG.modrinth.token
+                }
+            });
+            
+            return response.ok ? '运行正常' : `状态异常 (${response.status})`;
+        } catch (error) {
+            logger.error('[MCTool] 检查Modrinth API状态失败:', error);
+            return '连接失败';
+        }
+    }
+
+    async checkCurseForgeAPI() {
+        try {
+            const response = await fetch(`${API_CONFIG.curseforge.baseUrl}/games`, {
+                method: 'GET',
+                headers: {
+                    'x-api-key': API_CONFIG.curseforge.token
+                }
+            });
+            
+            return response.ok ? '运行正常' : `状态异常 (${response.status})`;
+        } catch (error) {
+            logger.error('[MCTool] 检查CurseForge API状态失败:', error);
+            return '连接失败';
         }
     }
 } 

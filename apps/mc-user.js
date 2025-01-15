@@ -95,12 +95,7 @@ export class MCUser extends plugin {
             const { api, available } = await initCloudAPI(this.e.bot);
             this.cloudAPI = api;
             this.cloudAvailable = available;
-            
-            // 如果云端可用，尝试同步本地数据到云端
-            if (available) {
-                await this.syncLocalToCloud();
-            }
-            
+            logger.info(`[MCTool] 云端API状态: ${available ? '可用' : '不可用'}`);
             return this.cloudAvailable;
         } catch (err) {
             logger.error(`[MCTool] 云端API初始化失败: ${err.message}`);
@@ -533,61 +528,62 @@ export class MCUser extends plugin {
      * @param {*} e 消息事件
      */
     async unbindUser(e) {
-        logger.info(`[MCTool] 触发解绑命令: ${e.msg}`);
         const match = e.msg.match(/^#?[Mm][Cc]解绑\s+(mojang|littleskin)\s+(.+)$/);
         const bindType = match[1].toLowerCase();
         const username = match[2].trim();
 
-        if (!username) {
-            e.reply('请提供要解绑的用户名');
+        logger.info(`[MCTool] 触发解绑命令: #mc解绑 ${bindType} ${username}`);
+        logger.info(`[MCTool] 云端API状态: ${this.cloudAvailable ? '可用' : '不可用'}`);
+
+        // 1. 获取本地数据
+        const bindings = Data.read(`${bindType}_bindings`) || {};
+        const userIndex = Data.read(`${bindType}_username_index`) || {};
+        const boundQQ = userIndex[username.toLowerCase()];
+
+        // 2. 验证本地绑定状态
+        if (!boundQQ) {
+            e.reply('该用户名未绑定到任何QQ号');
             return false;
         }
 
-        try {
-            // 1. 初始化云端API
-            await this.initCloud();
-            if (!this.cloudAvailable) {
-                e.reply('云端服务不可用，暂时无法进行解绑操作');
-                return false;
-            }
+        const userBindings = bindings[boundQQ];
+        if (!userBindings) {
+            e.reply('该用户名未绑定到任何QQ号');
+            return false;
+        }
 
-            // 2. 查询云端绑定状态
-            let cloudBinding;
+        // 查找绑定记录，确保只查找isBound为true或未设置isBound的记录
+        const bindingIndex = userBindings.findIndex(b => 
+            b.username.toLowerCase() === username.toLowerCase() && 
+            (b.isBound === true || b.isBound === undefined)
+        );
+
+        if (bindingIndex === -1) {
+            e.reply('该用户名未绑定到任何QQ号');
+            return false;
+        }
+
+        if (boundQQ !== e.user_id.toString()) {
+            e.reply('该用户名未绑定到你的账号');
+            return false;
+        }
+
+        // 3. 更新本地数据
+        const now = new Date().toISOString();
+        userBindings[bindingIndex].isBound = false;
+        userBindings[bindingIndex].updateTime = now;
+        delete userIndex[username.toLowerCase()];
+
+        // 保存更新后的数据
+        Data.write(`${bindType}_bindings`, bindings);
+        Data.write(`${bindType}_username_index`, userIndex);
+
+        // 4. 如果云端可用,执行云端解绑
+        if (this.cloudAvailable) {
             try {
-                const response = await this.cloudAPI.request(`/api/binding/query?username=${username}&bindType=${bindType}`, {
-                    headers: {
-                        'X-Bot-Token': this.cloudAPI.token
-                    }
-                });
-                const data = Array.isArray(response) ? response : (response.data || []);
-                logger.info(`[MCTool] 收到查询响应: ${JSON.stringify(data)}`);
-
-                if (!data || data.length === 0) {
-                    e.reply('该用户名未绑定到任何QQ号');
-                    return false;
-                }
-
-                cloudBinding = data[0];
-                if (!cloudBinding.isBound) {
-                    e.reply('该用户已处于解绑状态，如需使用请重新绑定');
-                    return false;
-                }
-
-                if (cloudBinding.qqNumber !== e.user_id.toString()) {
-                    e.reply('该用户名未绑定到你的账号');
-                    return false;
-                }
-            } catch (err) {
-                logger.error(`[MCTool] 查询云端绑定状态失败: ${err.message}`);
-                throw err;
-            }
-
-            // 3. 执行云端解绑
-            try {
-                const unbindResponse = await this.cloudAPI.request('/api/binding/unbind', {
+                await this.cloudAPI.request('/api/binding/unbind', {
                     method: 'POST',
                     headers: {
-                        'X-Bot-Token': this.cloudAPI.token,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -596,55 +592,17 @@ export class MCUser extends plugin {
                         username: username
                     })
                 });
-
-                if (unbindResponse.code !== 200) {
-                    throw new Error(unbindResponse.message || '解绑失败');
-                }
-
-                const responseData = unbindResponse.data;
-                logger.info(`[MCTool] 收到解绑响应: ${JSON.stringify(responseData)}`);
-
-                // 4. 更新本地数据
-                const bindings = Data.read(`${bindType}_bindings`) || {};
-                const userIndex = Data.read(`${bindType}_username_index`) || {};
-
-                if (bindings[e.user_id]) {
-                    // 删除该用户名的绑定记录
-                    bindings[e.user_id] = bindings[e.user_id].filter(
-                        b => b.username.toLowerCase() !== username.toLowerCase()
-                    );
-
-                    // 如果没有任何绑定了，删除整个QQ号的记录
-                    if (bindings[e.user_id].length === 0) {
-                        delete bindings[e.user_id];
-                    }
-                }
-
-                // 从索引中删除
-                delete userIndex[username.toLowerCase()];
-
-                // 保存更新后的数据
-                Data.write(`${bindType}_bindings`, bindings);
-                Data.write(`${bindType}_username_index`, userIndex);
-
+                logger.info(`[MCTool] 云端解绑成功: ${username}`);
                 e.reply(`解绑成功\n用户名：${username}`);
-                return true;
             } catch (err) {
-                if (err.message.includes('未找到绑定信息')) {
-                    e.reply('该用户名未绑定到你的账号');
-                    return false;
-                }
-                if (err.message.includes('该用户已处于解绑状态')) {
-                    e.reply('该用户已处于解绑状态，如需使用请重新绑定');
-                    return false;
-                }
-                throw err;
+                logger.error(`[MCTool] 云端解绑失败: ${err.message}`);
+                e.reply(`解绑成功，但云端同步失败，将在云端恢复后自动同步\n用户名：${username}`);
             }
-        } catch (error) {
-            logger.error(`[MCTool] 解绑失败: ${error.message}`);
-            e.reply(`解绑失败: ${error.message}`);
-            return false;
+        } else {
+            e.reply(`解绑成功\n用户名：${username}`);
         }
+
+        return true;
     }
 
     /**
@@ -1672,58 +1630,36 @@ export class MCUser extends plugin {
             // 6. 初始化角色列表
             const newProfiles = [];
             const selfBoundProfiles = [];
+            const otherBoundProfiles = [];
             const errorProfiles = [];
 
             // 7. 检查每个角色的绑定状态
             for (const profile of profiles) {
                 try {
                     if (this.cloudAvailable) {
-                        try {
-                            // 查询绑定状态
-                            const queryResponse = await this.cloudAPI.request(`/api/binding/query?username=${profile.name}&bindType=littleskin`, {
-                                method: 'GET',
-                                headers: {
-                                    'X-Bot-Token': this.cloudAPI.token
-                                }
-                            });
+                        // 查询绑定状态
+                        const queryResponse = await this.cloudAPI.request(`/api/binding/query?username=${profile.name}&bindType=littleskin`, {
+                            headers: {
+                                'X-Bot-Token': this.cloudAPI.token
+                            }
+                        });
 
-                            // 如果查询到已绑定的数据
-                            if (queryResponse.data && queryResponse.data.length > 0 && queryResponse.data[0].isBound) {
-                                const binding = queryResponse.data[0];
+                        // 正确处理返回结果
+                        if (queryResponse.code === 200 && queryResponse.data && queryResponse.data.length > 0) {
+                            const binding = queryResponse.data[0];
+                            if (binding.isBound) {
                                 if (binding.qqNumber === e.user_id.toString()) {
-                                    // 已绑定到当前QQ
+                                    // 已绑定到当前QQ，跳过处理
                                     selfBoundProfiles.push(profile);
                                 } else {
-                                    // 已绑定到其他QQ，需要解绑
-                                    await this.cloudAPI.request('/api/binding/unbind', {
-                                        method: 'POST',
-                                        headers: {
-                                            'X-Bot-Token': this.cloudAPI.token,
-                                            'Content-Type': 'application/json'
-                                        },
-                                        body: JSON.stringify({
-                                            qqNumber: binding.qqNumber,
-                                            bindType: 'littleskin',
-                                            username: profile.name
-                                        })
-                                    });
-                                    logger.info(`[MCTool] 角色 ${profile.name} 已从QQ ${binding.qqNumber} 解绑`);
-                                    newProfiles.push(profile);
+                                    // 已绑定到其他QQ，需要解绑后重新绑定
+                                    otherBoundProfiles.push({ profile, currentQQ: binding.qqNumber });
                                 }
-                            } else {
-                                // 未绑定状态，直接加入待绑定列表
-                                newProfiles.push(profile);
-                            }
-                        } catch (err) {
-                            // 如果是"未找到绑定信息"，这是正常情况，直接加入待绑定列表
-                            if (err.message.includes('未找到绑定信息')) {
-                                newProfiles.push(profile);
-                                logger.info(`[MCTool] 角色 ${profile.name} 未找到绑定信息，将加入待绑定列表`);
-                            } else {
-                                logger.error(`[MCTool] 检查角色 ${profile.name} 失败: ${err.message}`);
-                                errorProfiles.push({ profile, error: err.message });
+                                continue;
                             }
                         }
+                        // 未找到绑定信息或未绑定状态，可以直接绑定
+                        newProfiles.push(profile);
                     } else {
                         // 云端不可用时，只检查本地数据
                         const localBindings = Data.read('littleskin_bindings') || {};
@@ -1731,50 +1667,63 @@ export class MCUser extends plugin {
                         
                         const boundQQ = localIndex[profile.name.toLowerCase()];
                         if (boundQQ) {
-                            if (boundQQ === e.user_id) {
-                                selfBoundProfiles.push(profile);
-                            } else {
-                                newProfiles.push(profile);
+                            const userBindings = localBindings[boundQQ] || [];
+                            const binding = userBindings.find(b => b.username.toLowerCase() === profile.name.toLowerCase());
+                            
+                            if (binding && binding.isBound) {
+                                if (boundQQ === e.user_id) {
+                                    selfBoundProfiles.push(profile);
+                                } else {
+                                    otherBoundProfiles.push({ profile, currentQQ: boundQQ });
+                                }
+                                continue;
                             }
-                        } else {
-                            newProfiles.push(profile);
                         }
+                        newProfiles.push(profile);
                     }
                 } catch (err) {
-                    logger.error(`[MCTool] 检查角色 ${profile.name} 失败: ${err.message}`);
-                    errorProfiles.push({ profile, error: err.message });
+                    // 如果是未找到绑定信息，这是正常情况，直接加入待绑定列表
+                    if (err.message.includes('未找到绑定信息')) {
+                        newProfiles.push(profile);
+                    } else {
+                        logger.error(`[MCTool] 检查角色 ${profile.name} 失败: ${err.message}`);
+                        errorProfiles.push({ profile, error: err.message });
+                    }
                 }
             }
 
-            // 8. 处理已绑定的角色
+            // 8. 处理需要解绑的角色
+            for (const { profile, currentQQ } of otherBoundProfiles) {
+                try {
+                    if (this.cloudAvailable) {
+                        await this.cloudAPI.request('/api/binding/unbind', {
+                            method: 'POST',
+                            headers: {
+                                'X-Bot-Token': this.cloudAPI.token,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                qqNumber: currentQQ,
+                                bindType: 'littleskin',
+                                username: profile.name
+                            })
+                        });
+                        logger.info(`[MCTool] 角色 ${profile.name} 已从QQ ${currentQQ} 解绑`);
+                        // 解绑成功后，加入待绑定列表
+                        newProfiles.push(profile);
+                    }
+                } catch (err) {
+                    logger.error(`[MCTool] 解绑角色 ${profile.name} 失败: ${err.message}`);
+                    errorProfiles.push({ profile, error: `解绑失败: ${err.message}` });
+                }
+            }
+
+            // 9. 处理新的绑定
             if (newProfiles.length > 0) {
-                const bindMsg = [];
-                const toBindProfiles = [];
+                const bindResults = [];
+                const now = new Date().toISOString();
 
                 for (const profile of newProfiles) {
-                    toBindProfiles.push({ profile });
-                    bindMsg.push(profile.name);
-                }
-
-                // 发送绑定消息
-                if (bindMsg.length > 0) {
-                    try {
-                        const msg = await e.reply(['以下角色将进行绑定：', ...bindMsg].join('\n'));
-                        if (msg && e.group && typeof e.group.recallMsg === 'function') {
-                            setTimeout(() => e.group.recallMsg(msg).catch(err => {
-                                logger.error(`[MCTool] 撤回绑定消息失败: ${err.message}`);
-                            }), 30000);
-                        }
-                    } catch (err) {
-                        logger.error(`[MCTool] 发送绑定消息失败: ${err.message}`);
-                    }
-                }
-
-                // 执行绑定
-                const bindResults = [];
-                const now = Date.now();
-
-                for (const { profile } of toBindProfiles) {
                     try {
                         // 先更新本地数据
                         const localBindings = Data.read('littleskin_bindings') || {};
@@ -1880,20 +1829,39 @@ export class MCUser extends plugin {
                 // 12. 返回绑定结果消息
                 let resultMessage = `LittleSkin绑定完成\n\n`;
                 
-                if (bindResults.length > 0) {
-                    resultMessage += `绑定结果：\n`;
-                    for (const result of bindResults) {
-                        resultMessage += `${result.profile.name}: ${result.success ? '绑定成功' : result.message}\n`;
-                        if (result.success) {
-                            resultMessage += `UUID: ${result.profile.id}\n`;
-                        }
+                if (selfBoundProfiles.length > 0) {
+                    resultMessage += `已绑定到当前QQ的角色：\n`;
+                    for (const profile of selfBoundProfiles) {
+                        resultMessage += `${profile.name}\nUUID: ${profile.id}\n`;
                     }
+                    resultMessage += '\n';
                 }
 
-                if (errorProfiles.length > 0) {
-                    resultMessage += `\n失败的角色：\n`;
-                    for (const error of errorProfiles) {
-                        resultMessage += `${error.profile.name}: ${error.error}\n`;
+                if (otherBoundProfiles.length > 0) {
+                    resultMessage += `需要解绑并重新绑定的角色：\n`;
+                    for (const { profile, currentQQ } of otherBoundProfiles) {
+                        resultMessage += `${profile.name} (当前绑定QQ: ${currentQQ})\n`;
+                    }
+                    resultMessage += '\n';
+                }
+
+                if (bindResults.length > 0) {
+                    const successResults = bindResults.filter(r => r.success);
+                    const failureResults = bindResults.filter(r => !r.success);
+
+                    if (successResults.length > 0) {
+                        resultMessage += `新绑定成功的角色：\n`;
+                        for (const result of successResults) {
+                            resultMessage += `${result.profile.name}\nUUID: ${result.profile.id}\n`;
+                        }
+                        resultMessage += '\n';
+                    }
+
+                    if (failureResults.length > 0) {
+                        resultMessage += `绑定失败的角色：\n`;
+                        for (const result of failureResults) {
+                            resultMessage += `${result.profile.name}: ${result.message}\n`;
+                        }
                     }
                 }
 
