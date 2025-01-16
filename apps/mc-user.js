@@ -1484,16 +1484,19 @@ export class MCUser extends plugin {
             // 3. 向用户发送授权链接
             let authMsg;
             try {
-                authMsg = await e.reply([
-                    '请在2分钟内完成LittleSkin账号授权：',
-                    '1. 确认当前浏览器中已登陆LittleSkin账号',
-                    `2. 点击链接: ${verification_uri_complete}`,
-                    '3. 请在页面中点击确认授权',
-                    '',
-                    '授权码：' + user_code,
-                    '',
+                const msgContent = [
+                    segment.at(e.user_id),
+                    '\n请在2分钟内完成LittleSkin账号授权：\n',
+                    '1. 确认当前浏览器中已登陆LittleSkin账号\n',
+                    `2. 点击链接: ${verification_uri_complete}\n`,
+                    '3. 请在页面中点击确认授权\n',
+                    '\n',
+                    '授权码：' + user_code + '\n',
+                    '\n',
                     '机器人承诺不本地保存token，请勿点击他人授权链接'
-                ].join('\n'));
+                ];
+
+                authMsg = await e.reply(msgContent);
 
                 // 保存消息ID用于后续撤回
                 if (authMsg && authMsg.message_id) {
@@ -1554,6 +1557,11 @@ export class MCUser extends plugin {
                                 logger.error(`[MCTool] 授权成功后撤回消息失败: ${err.message}`);
                             }
                         }
+                        // 添加授权成功的即时提示
+                        await e.reply([
+                            segment.at(e.user_id),
+                            'LittleSkin 授权成功！正在获取角色信息...'
+                        ]);
                         break;
                     }
 
@@ -1609,14 +1617,15 @@ export class MCUser extends plugin {
                 }
 
                 profiles = profileData.map(player => ({
-                    id: player.pid.toString(),
+                    id: player.pid.toString(),  // 使用 pid 作为 UUID
                     name: player.name,
                     properties: [{
                         name: 'textures',
                         value: JSON.stringify({
                             tid_skin: player.tid_skin,
                             tid_cape: player.tid_cape,
-                            last_modified: player.last_modified
+                            last_modified: player.last_modified,
+                            uid: player.uid
                         })
                     }]
                 }));
@@ -1684,7 +1693,31 @@ export class MCUser extends plugin {
                 } catch (err) {
                     // 如果是未找到绑定信息，这是正常情况，直接加入待绑定列表
                     if (err.message.includes('未找到绑定信息')) {
+                        logger.info(`[MCTool] 角色 ${profile.name} 未找到绑定信息，将进行新绑定`);
                         newProfiles.push(profile);
+                    } else if (err.message.includes('云端服务暂时不可用')) {
+                        // 云端不可用时，检查本地数据
+                        logger.warn(`[MCTool] 云端不可用，将使用本地数据检查角色 ${profile.name}`);
+                        const localBindings = Data.read('littleskin_bindings') || {};
+                        const localIndex = Data.read('littleskin_username_index') || {};
+                        
+                        const boundQQ = localIndex[profile.name.toLowerCase()];
+                        if (boundQQ) {
+                            const userBindings = localBindings[boundQQ] || [];
+                            const binding = userBindings.find(b => b.username.toLowerCase() === profile.name.toLowerCase());
+                            
+                            if (binding && binding.isBound) {
+                                if (boundQQ === e.user_id) {
+                                    selfBoundProfiles.push(profile);
+                                } else {
+                                    otherBoundProfiles.push({ profile, currentQQ: boundQQ });
+                                }
+                            } else {
+                                newProfiles.push(profile);
+                            }
+                        } else {
+                            newProfiles.push(profile);
+                        }
                     } else {
                         logger.error(`[MCTool] 检查角色 ${profile.name} 失败: ${err.message}`);
                         errorProfiles.push({ profile, error: err.message });
@@ -1719,6 +1752,18 @@ export class MCUser extends plugin {
             }
 
             // 9. 处理新的绑定
+            let resultMessage = `LittleSkin绑定完成\n\n`;
+
+            // 显示已绑定的角色
+            if (selfBoundProfiles.length > 0) {
+                resultMessage += `已绑定到当前QQ的角色:\n`;
+                selfBoundProfiles.forEach(profile => {
+                    resultMessage += `${profile.name} (UUID: ${profile.id})\n`;
+                });
+                resultMessage += '\n';
+            }
+
+            // 处理新的绑定
             if (newProfiles.length > 0) {
                 const bindResults = [];
                 const now = new Date().toISOString();
@@ -1760,30 +1805,55 @@ export class MCUser extends plugin {
 
                         // 然后尝试云端绑定
                         if (this.cloudAvailable) {
-                            const response = await this.cloudAPI.request('/api/binding/bind', {
-                                method: 'POST',
+                            // 先查询云端状态以确保不会覆盖更新的数据
+                            const queryResponse = await this.cloudAPI.request(`/api/binding/query?username=${profile.name}&bindType=littleskin`, {
                                 headers: {
-                                    'X-Bot-Token': this.cloudAPI.token,
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    qqNumber: e.user_id.toString(),
-                                    bindType: 'littleskin',
-                                    uuid: profile.id,
-                                    username: profile.name,
-                                    skinData: profile.properties?.[0]?.value
-                                })
+                                    'X-Bot-Token': this.cloudAPI.token
+                                }
                             });
+                            
+                            const data = Array.isArray(queryResponse) ? queryResponse : (queryResponse.data || []);
+                            const cloudBinding = data[0];
+                            
+                            // 只有当云端没有数据，或者本地数据更新时，才进行云端绑定
+                            if (!cloudBinding || 
+                                (bindData.updateTime && (!cloudBinding.updateTime || new Date(bindData.updateTime) > new Date(cloudBinding.updateTime)))) {
+                                const response = await this.cloudAPI.request('/api/binding/bind', {
+                                    method: 'POST',
+                                    headers: {
+                                        'X-Bot-Token': this.cloudAPI.token,
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        qqNumber: e.user_id.toString(),
+                                        bindType: 'littleskin',
+                                        uuid: profile.id,
+                                        username: profile.name,
+                                        skinData: profile.properties?.[0]?.value
+                                    })
+                                });
 
-                            if (response && response.id) {
-                                logger.info(`[MCTool] 角色 ${profile.name} 绑定成功`);
+                                if (response && response.id) {
+                                    logger.info(`[MCTool] 角色 ${profile.name} 绑定成功`);
+                                    bindResults.push({
+                                        profile,
+                                        success: true,
+                                        message: '绑定成功'
+                                    });
+                                }
+                            } else {
+                                // 如果云端数据更新，使用云端数据
+                                bindData.updateTime = cloudBinding.updateTime;
+                                bindData.skinData = cloudBinding.skinData;
                                 bindResults.push({
                                     profile,
                                     success: true,
-                                    message: '绑定成功'
+                                    message: '使用云端现有数据'
                                 });
                             }
                         } else {
+                            // 确保本地绑定时也设置 isBound 状态
+                            bindData.isBound = true;
                             bindResults.push({
                                 profile,
                                 success: true,
@@ -1800,8 +1870,20 @@ export class MCUser extends plugin {
                     }
                 }
 
-                // 11. 所有绑定完成后，尝试保存token到云端
-                if (this.cloudAvailable && token) {
+                // 显示绑定结果
+                if (bindResults.length > 0) {
+                    resultMessage += `新绑定的角色:\n`;
+                    bindResults.forEach(result => {
+                        if (result.success) {
+                            resultMessage += `${result.profile.name} (UUID: ${result.profile.id}) - ${result.message}\n`;
+                        } else {
+                            resultMessage += `${result.profile.name} (UUID: ${result.profile.id}) - ${result.message}\n`;
+                        }
+                    });
+                }
+
+                // 保存 token 到云端
+                if (this.cloudAvailable) {
                     try {
                         const saveTokenResponse = await this.cloudAPI.request('/api/littleskin/token/save', {
                             method: 'POST',
@@ -1825,53 +1907,17 @@ export class MCUser extends plugin {
                         logger.error(`[MCTool] Token保存失败: ${err.message}`);
                     }
                 }
-
-                // 12. 返回绑定结果消息
-                let resultMessage = `LittleSkin绑定完成\n\n`;
-                
-                if (selfBoundProfiles.length > 0) {
-                    resultMessage += `已绑定到当前QQ的角色：\n`;
-                    for (const profile of selfBoundProfiles) {
-                        resultMessage += `${profile.name}\nUUID: ${profile.id}\n`;
-                    }
-                    resultMessage += '\n';
-                }
-
-                if (otherBoundProfiles.length > 0) {
-                    resultMessage += `需要解绑并重新绑定的角色：\n`;
-                    for (const { profile, currentQQ } of otherBoundProfiles) {
-                        resultMessage += `${profile.name} (当前绑定QQ: ${currentQQ})\n`;
-                    }
-                    resultMessage += '\n';
-                }
-
-                if (bindResults.length > 0) {
-                    const successResults = bindResults.filter(r => r.success);
-                    const failureResults = bindResults.filter(r => !r.success);
-
-                    if (successResults.length > 0) {
-                        resultMessage += `新绑定成功的角色：\n`;
-                        for (const result of successResults) {
-                            resultMessage += `${result.profile.name}\nUUID: ${result.profile.id}\n`;
-                        }
-                        resultMessage += '\n';
-                    }
-
-                    if (failureResults.length > 0) {
-                        resultMessage += `绑定失败的角色：\n`;
-                        for (const result of failureResults) {
-                            resultMessage += `${result.profile.name}: ${result.message}\n`;
-                        }
-                    }
-                }
-
-                if (!this.cloudAvailable) {
-                    resultMessage += '\n注意：云端同步暂不可用，数据将在云端恢复后自动同步';
-                }
-
-                e.reply(resultMessage);
-                return true;
+            } else {
+                resultMessage += `没有需要绑定的新角色`;
             }
+
+            // 如果云端不可用,添加提示
+            if (!this.cloudAvailable) {
+                resultMessage += `\n\n注意：云端服务暂时不可用，已完成本地绑定。云端同步将在服务恢复后自动进行。`;
+            }
+
+            e.reply(resultMessage);
+            return true;
         } catch (error) {
             logger.error(`[MCTool] LittleSkin绑定失败: ${error.message}`);
             e.reply(`绑定失败: ${error.message}`);
