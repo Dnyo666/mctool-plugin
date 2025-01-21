@@ -1,5 +1,4 @@
 import { getConfig, initCloudAPI } from './mc-utils.js'
-import logger from '../models/logger.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'node:url'
