@@ -81,6 +81,23 @@
             font-size: 16px;
             color: #333;
             margin-bottom: 3px;
+            display: flex;
+            align-items: center;
+        }
+        .platform-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+            color: white;
+            font-weight: normal;
+        }
+        .platform-badge.mojang {
+            background-color: #e42727;
+        }
+        .platform-badge.littleskin {
+            background-color: #90EE90;
         }
         .account-details {
             font-size: 12px;
@@ -140,10 +157,13 @@
                 <div class="account-header">
                     <img class="account-avatar" src="{{account.avatarUrl}}" alt="Avatar" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
                     <div class="account-info">
-                        <div class="account-username">{{account.username}}</div>
+                        <div class="account-username">
+                            {{account.username}}
+                            <span class="platform-badge {{account.platform.toLowerCase()}}">{{account.platform}}</span>
+                        </div>
                         <div class="account-details">
                             <div>UUID: {{account.uuid}}</div>
-                            <div>绑定时间: {{account.createTime}}</div>
+                            <div>绑定时间: {{account.bindTime}}</div>
                         </div>
                     </div>
                 </div>

@@ -10,7 +10,7 @@ export class MCUser extends plugin {
             name: 'MCTool-用户',
             dsc: 'Minecraft用户管理',
             event: 'message',
-            priority: 5000,
+            priority: -5000,
             rule: [
                 {
                     reg: '^#?[Mm][Cc]绑定\\s+mojang\\s+(.+)$',
@@ -51,6 +51,11 @@ export class MCUser extends plugin {
                     reg: '^#?[Mm][Cc]绑定\\s+littleskin$',
                     fnc: 'bindLittleSkin',
                     permission: 'all'
+                },
+                {
+                    reg: '^#?[Mm][Cc]切换绑定\\s*(全部|mojang|littleskin)$',
+                    fnc: 'switchDisplayMode',
+                    permission: 'all'
                 }
             ]
         })
@@ -79,11 +84,13 @@ export class MCUser extends plugin {
         const littleSkinBindings = Data.read('littleskin_bindings') || {};
         const mojangIndex = Data.read('mojang_username_index') || {};
         const littleSkinIndex = Data.read('littleskin_username_index') || {};
+        const displayPreferences = Data.read('display_preferences') || {};
 
         Data.write('mojang_bindings', mojangBindings);
         Data.write('littleskin_bindings', littleSkinBindings);
         Data.write('mojang_username_index', mojangIndex);
         Data.write('littleskin_username_index', littleSkinIndex);
+        Data.write('display_preferences', displayPreferences);
     }
 
     /**
@@ -615,41 +622,68 @@ export class MCUser extends plugin {
             // 1. 初始化云端API
             await this.initCloud();
             
-            let userBindings = [];
+            let mojangBindings = [];
+            let littleSkinBindings = [];
             let isCloudData = false;
 
             // 2. 尝试从云端获取数据
             if (this.cloudAvailable) {
                 try {
-                    logger.info(`[MCTool] 发送用户绑定查询请求: qqNumber=${e.user_id}, bindType=mojang`);
-                    // 获取 Mojang 绑定（目前只支持 Mojang）
-                    const response = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
+                    // 获取 Mojang 绑定
+                    const mojangResponse = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
                         headers: {
                             'X-Bot-Token': this.cloudAPI.token
                         }
                     });
-                    logger.info(`[MCTool] 收到查询响应: ${JSON.stringify(response)}`);
+                    const mojangData = Array.isArray(mojangResponse) ? mojangResponse : (mojangResponse.data || []);
+                    mojangBindings = mojangData.filter(b => b.isBound === true);
 
-                    // 处理直接返回数组的情况
-                    const data = Array.isArray(response) ? response : (response.data || []);
-                    // 过滤掉已解绑的数据
-                    userBindings = data.filter(binding => binding.isBound === true);
+                    // 获取 LittleSkin 绑定
+                    const littleSkinResponse = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=littleskin`, {
+                        headers: {
+                            'X-Bot-Token': this.cloudAPI.token
+                        }
+                    });
+                    const littleSkinData = Array.isArray(littleSkinResponse) ? littleSkinResponse : (littleSkinResponse.data || []);
+                    littleSkinBindings = littleSkinData.filter(b => b.isBound === true);
+                    
                     isCloudData = true;
-                    logger.info(`[MCTool] 获取到 ${userBindings.length} 个有效绑定`);
                 } catch (err) {
                     logger.error(`[MCTool] 云端查询失败: ${err.message}`);
-                    e.reply('云端服务暂时不可用，将使用本地备份数据');
+                    // 如果云端查询失败，使用本地数据
+                    const mojangLocal = Data.read('mojang_bindings') || {};
+                    const littleSkinLocal = Data.read('littleskin_bindings') || {};
+                    mojangBindings = mojangLocal[e.user_id] || [];
+                    littleSkinBindings = littleSkinLocal[e.user_id] || [];
                 }
+            } else {
+                // 如果云端不可用，使用本地数据
+                const mojangLocal = Data.read('mojang_bindings') || {};
+                const littleSkinLocal = Data.read('littleskin_bindings') || {};
+                mojangBindings = mojangLocal[e.user_id] || [];
+                littleSkinBindings = littleSkinLocal[e.user_id] || [];
             }
 
-            // 3. 如果云端不可用，使用本地备份
-            if (!isCloudData) {
-                const bindings = Data.read('mojang_bindings') || {};
-                userBindings = bindings[e.user_id] || [];
+            // 获取用户的显示偏好
+            const displayPreferences = Data.read('display_preferences') || {};
+            const displayMode = displayPreferences[e.user_id] || '全部';
+
+            // 根据显示偏好过滤账号
+            let accounts = [];
+            if (displayMode === '全部' || displayMode === 'mojang') {
+                accounts.push(...mojangBindings.map(b => ({...b, platform: 'Mojang'})));
+            }
+            if (displayMode === '全部' || displayMode === 'littleskin') {
+                accounts.push(...littleSkinBindings.map(b => ({...b, platform: 'LittleSkin'})));
             }
 
-            if (!userBindings || userBindings.length === 0) {
-                e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 mojang <正版用户名> 进行绑定');
+            if (accounts.length === 0) {
+                const bindMsg = [
+                    '你还没有绑定任何Minecraft账号，请使用以下命令进行绑定：',
+                    '1. Mojang正版账号：#mc绑定 mojang <正版用户名>',
+                    '2. LittleSkin账号：#mc绑定 littleskin'
+                ].join('\n');
+                e.reply(bindMsg);
                 return false;
             }
 
@@ -701,12 +735,12 @@ export class MCUser extends plugin {
                 }
             }
 
-            // 处理每个绑定账号
-            const accounts = await Promise.all(userBindings.map(async (binding) => {
+            // 处理每个账号
+            const processedAccounts = await Promise.all(accounts.map(async (account) => {
                 try {
                     let skinUrl;
                     // 确保有正确格式的 UUID
-                    const formattedUUID = binding.uuid.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+                    const formattedUUID = account.uuid.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
 
                     if (use3D && !use2DFallback) {
                         if (renderType === 1) {
@@ -715,27 +749,40 @@ export class MCUser extends plugin {
                             const definition = config.skin?.render1?.definition || 1.5;
                             const transparent = config.skin?.render1?.transparent ?? true;
                             
-                            const render3DUrl = `${server}/mojang/image/both?name=${binding.username}&definition=${definition}&transparent=${transparent}`;
+                            const render3DUrl = `${server}/${account.platform.toLowerCase()}/image/both?name=${account.username}&definition=${definition}&transparent=${transparent}`;
                             logger.info(`[MCTool] 尝试3D渲染，URL: ${render3DUrl}`);
                             
                             try {
-                                // 添加60秒超时
+                                // 根据账号数量动态调整超时时间
+                                const timeoutDuration = accounts.length > 4 ? 120000 : 60000; // 超过4个账号时延长到120秒
                                 const response = await Promise.race([
                                     fetch(render3DUrl),
                                     new Promise((_, reject) => 
-                                        setTimeout(() => reject(new Error('3D渲染超时（60秒）')), 60000)
+                                        setTimeout(() => reject(new Error(`3D渲染超时（${timeoutDuration/1000}秒）`)), timeoutDuration)
                                     )
                                 ]);
                                 
                                 if (response.ok) {
-                                    logger.info(`[MCTool] 3D渲染成功: ${binding.username}`);
+                                    logger.info(`[MCTool] 3D渲染成功: ${account.username}`);
                                     skinUrl = [render3DUrl];
                                 } else {
                                     throw new Error(`3D渲染服务返回错误: ${response.status}`);
                                 }
                             } catch (error) {
                                 logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
-                                skinUrl = [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`];
+                                skinUrl = [`https://api.mineatar.io/body/full/${account.uuid}?scale=8`];
+                                // 如果是 LittleSkin 账号，使用 LittleSkin 的预览 API
+                                if (account.platform === 'LittleSkin') {
+                                    try {
+                                        const skinDataObj = JSON.parse(account.skinData || '{}');
+                                        const tid_skin = skinDataObj.tid_skin;
+                                        if (tid_skin) {
+                                            skinUrl = [`https://littleskin.cn/preview/${tid_skin}?height=300`];
+                                        }
+                                    } catch (error) {
+                                        logger.error(`[MCTool] 解析皮肤数据失败: ${error.message}`);
+                                    }
+                                }
                             }
                         } else {
                             // 渲染方案二：站立视图
@@ -745,14 +792,26 @@ export class MCUser extends plugin {
                             const height = config.skin?.render2?.height || 600;
                             
                             try {
+                                let skinHash = account.uuid;
+                                if (account.platform === 'LittleSkin') {
+                                    // 获取 LittleSkin 皮肤信息
+                                    const skinResponse = await fetch(`https://littleskin.cn/csl/${account.username}.json`);
+                                    const skinData = await skinResponse.json();
+                                    if (skinData.skins && skinData.skins.slim) {
+                                        skinHash = skinData.skins.slim;
+                                    }
+                                }
+
                                 // 第一个角度的渲染URL（正面135度）
-                                const render3DUrl1 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=135&angleY=38`;
+                                const render3DUrl1 = `${server}${endpoint}?${account.platform === 'LittleSkin' ? 'skin=https://littleskin.cn/textures/' + skinHash : 'uuid=' + account.uuid}&width=${width}&height=${height}&angle=135&angleY=38`;
                                 // 第二个角度的渲染URL（背面315度）
-                                const render3DUrl2 = `${server}${endpoint}?uuid=${binding.raw_uuid}&width=${width}&height=${height}&angle=315&angleY=38`;
+                                const render3DUrl2 = `${server}${endpoint}?${account.platform === 'LittleSkin' ? 'skin=https://littleskin.cn/textures/' + skinHash : 'uuid=' + account.uuid}&width=${width}&height=${height}&angle=315&angleY=38`;
 
                                 logger.info(`[MCTool] 尝试3D渲染，URL1: ${render3DUrl1}`);
                                 logger.info(`[MCTool] 尝试3D渲染，URL2: ${render3DUrl2}`);
 
+                                // 根据账号数量动态调整超时时间
+                                const timeoutDuration = accounts.length > 4 ? 120000 : 60000; // 超过4个账号时延长到120秒
                                 // 并行请求两个渲染
                                 const [response1, response2] = await Promise.race([
                                     Promise.all([
@@ -760,12 +819,12 @@ export class MCUser extends plugin {
                                         fetch(render3DUrl2)
                                     ]),
                                     new Promise((_, reject) => 
-                                        setTimeout(() => reject(new Error('3D渲染超时，可能是皮肤过多')), 60000)
+                                        setTimeout(() => reject(new Error(`3D渲染超时（${timeoutDuration/1000}秒），可能是皮肤过多`)), timeoutDuration)
                                     )
                                 ]);
                                 
                                 if (response1.ok && response2.ok) {
-                                    logger.info(`[MCTool] 3D渲染成功: ${binding.username}`);
+                                    logger.info(`[MCTool] 3D渲染成功: ${account.username}`);
                                     skinUrl = [render3DUrl1, render3DUrl2];
                                 } else {
                                     throw new Error(`3D渲染服务返回错误: ${response1.status}, ${response2.status}`);
@@ -773,17 +832,57 @@ export class MCUser extends plugin {
                             } catch (error) {
                                 logger.info(`[MCTool] 3D渲染失败，使用2D渲染: ${error.message}`);
                                 skinUrl = [`https://api.mineatar.io/body/full/${formattedUUID}?scale=8`];
+                                // 如果是 LittleSkin 账号，使用 LittleSkin 的预览 API
+                                if (account.platform === 'LittleSkin') {
+                                    try {
+                                        const skinDataObj = JSON.parse(account.skinData || '{}');
+                                        const tid_skin = skinDataObj.tid_skin;
+                                        if (tid_skin) {
+                                            skinUrl = [`https://littleskin.cn/preview/${tid_skin}?height=300`];
+                                        }
+                                    } catch (error) {
+                                        logger.error(`[MCTool] 解析皮肤数据失败: ${error.message}`);
+                                    }
+                                }
                             }
                         }
                     } else {
                         skinUrl = [`https://api.mineatar.io/body/full/${formattedUUID}?scale=8`];
+                        // 如果是 LittleSkin 账号，使用 LittleSkin 的预览 API
+                        if (account.platform === 'LittleSkin') {
+                            try {
+                                const skinDataObj = JSON.parse(account.skinData || '{}');
+                                const tid_skin = skinDataObj.tid_skin;
+                                if (tid_skin) {
+                                    // 尝试访问 LittleSkin 预览接口
+                                    const previewUrl = `https://littleskin.cn/preview/${tid_skin}?height=300`;
+                                    const response = await fetch(previewUrl);
+                                    if (!response.ok) {
+                                        throw new Error(`LittleSkin 预览接口返回错误: ${response.status}`);
+                                    }
+                                    skinUrl = [previewUrl];
+                                } else {
+                                    throw new Error('未找到皮肤 ID');
+                                }
+                            } catch (error) {
+                                logger.error(`[MCTool] LittleSkin 皮肤渲染失败: ${error.message}`);
+                                // 如果 LittleSkin 预览接口不可用，返回 null 表示跳过渲染
+                                skinUrl = null;
+                            }
+                        }
                     }
-                    const avatarUrl = `https://api.mineatar.io/face/${formattedUUID}`;
+                    const avatarUrl = account.platform === 'Mojang' ? `https://api.mineatar.io/face/${formattedUUID}` : null;
+                    
+                    // 如果是 LittleSkin 账号且渲染失败，返回 null 表示跳过这个账号
+                    if (account.platform === 'LittleSkin' && !skinUrl) {
+                        return null;
+                    }
+                    
                     return {
-                        ...binding,
+                        ...account,
                         skinUrl: Array.isArray(skinUrl) ? skinUrl : [skinUrl],
                         avatarUrl,
-                        bindTime: new Date(binding.createTime).toLocaleString('zh-CN', {
+                        bindTime: new Date(account.createTime).toLocaleString('zh-CN', {
                             year: 'numeric',
                             month: '2-digit',
                             day: '2-digit',
@@ -794,12 +893,17 @@ export class MCUser extends plugin {
                         })
                     };
                 } catch (error) {
-                    logger.info(`[MCTool] 处理账号 ${binding.username} 失败: ${error.message}`);
+                    logger.info(`[MCTool] 处理账号 ${account.username} 失败: ${error.message}`);
+                    // 如果是 LittleSkin 账号出错，返回 null
+                    if (account.platform === 'LittleSkin') {
+                        return null;
+                    }
+                    // Mojang 账号使用默认渲染
                     return {
-                        ...binding,
-                        skinUrl: [`https://api.mineatar.io/body/full/${binding.raw_uuid}?scale=8`],
-                        avatarUrl: `https://api.mineatar.io/face/${binding.raw_uuid}`,
-                        bindTime: new Date(binding.createTime).toLocaleString('zh-CN', {
+                        ...account,
+                        skinUrl: [`https://api.mineatar.io/body/full/${account.uuid}?scale=8`],
+                        avatarUrl: `https://api.mineatar.io/face/${account.uuid}`,
+                        bindTime: new Date(account.createTime).toLocaleString('zh-CN', {
                             year: 'numeric',
                             month: '2-digit',
                             day: '2-digit',
@@ -812,22 +916,32 @@ export class MCUser extends plugin {
                 }
             }));
 
+            // 过滤掉渲染失败的账号（返回 null 的账号）
+            const filteredAccounts = processedAccounts.filter(account => account !== null);
+
+            // 如果所有账号都渲染失败
+            if (filteredAccounts.length === 0) {
+                e.reply('所有账号的皮肤渲染都失败了，请稍后重试');
+                return false;
+            }
+
             // 计算合适的视口高度和宽度
             const headerHeight = 60;   // 头部高度
             const accountHeight = 180;  // 账号卡片高度（减小）
             const footerHeight = 30;   // 底部高度（减小）
             const spacing = 10;        // 间距
-            const rowCount = Math.ceil(accounts.length / 2);  // 计算行数
+            const rowCount = Math.ceil(filteredAccounts.length / 2);  // 计算行数
             const totalHeight = headerHeight + (rowCount * (accountHeight + spacing)) + footerHeight;
             
             // 根据账号数量动态设置宽度
-            const viewportWidth = accounts.length === 1 ? 430 : 800;  // 单账号使用较窄的宽度
+            const viewportWidth = filteredAccounts.length === 1 ? 430 : 800;  // 单账号使用较窄的宽度
 
             // 渲染HTML
             const data = {
                 qq: e.user_id,
                 nickname: e.sender.card || e.sender.nickname,
-                accounts: accounts
+                accounts: filteredAccounts,
+                displayMode
             };
 
             // 使用puppeteer渲染HTML
@@ -848,15 +962,18 @@ export class MCUser extends plugin {
             template = template
                 .replace(/{{nickname}}/g, data.nickname)
                 .replace(/{{qq}}/g, data.qq)
-                .replace(/{{each accounts account}}[\s\S]*{{\/each}}/g, accounts.map(account => `
+                .replace(/{{each accounts account}}[\s\S]*{{\/each}}/g, filteredAccounts.map(account => `
                     <div class="account">
                         <div class="account-header">
                             <img class="account-avatar" src="${account.avatarUrl}" alt="Avatar" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
                             <div class="account-info">
-                                <div class="account-username">${account.username}</div>
+                                <div class="account-username">
+                                    ${account.username}
+                                    <span class="platform-badge ${account.platform.toLowerCase()}">${account.platform}</span>
+                                </div>
                                 <div class="account-details">
                                     <div>UUID: ${account.uuid}</div>
-                                    <div>绑定时间: ${account.createTime}</div>
+                                    <div>绑定时间: ${account.bindTime}</div>
                                 </div>
                             </div>
                         </div>
@@ -865,7 +982,26 @@ export class MCUser extends plugin {
                         </div>
                     </div>
                 `).join(''))
-                .replace(/{{accounts\.length === 1 \? 'single-account' : ''}}/g, accounts.length === 1 ? 'single-account' : '');
+                .replace(/{{accounts\.length === 1 \? 'single-account' : ''}}/g, filteredAccounts.length === 1 ? 'single-account' : '');
+
+            // 添加平台标识的样式
+            template = template.replace('</style>', `
+                .platform-badge {
+                    display: inline-block;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    margin-left: 8px;
+                    color: white;
+                }
+                .platform-badge.mojang {
+                    background-color: #ff4444;
+                }
+                .platform-badge.littleskin {
+                    background-color: #90EE90;
+                }
+                </style>
+            `);
 
             await page.setContent(template);
 
@@ -892,34 +1028,38 @@ export class MCUser extends plugin {
             // 发送图片
             try {
                 await e.reply(segment.image(`file:///${screenshotPath}`));
+                return true;
             } finally {
                 // 删除临时文件
-                if (fs.existsSync(screenshotPath)) {
-                    fs.unlinkSync(screenshotPath);
-                }
+                setTimeout(() => {
+                    try {
+                        if (fs.existsSync(screenshotPath)) {
+                            fs.unlinkSync(screenshotPath);
+                            logger.debug(`[MCTool] 成功删除临时文件: ${screenshotPath}`);
+                        }
+                    } catch (error) {
+                        logger.debug(`[MCTool] 删除临时文件失败（不影响使用）: ${error.message}`);
+                    }
+                }, 1000);  // 延迟1秒后删除，避免文件占用冲突
+
                 // 清理3D渲染的临时文件
                 if (this._tempFiles) {
-                    for (const file of this._tempFiles) {
-                        if (fs.existsSync(file)) {
+                    setTimeout(() => {
+                        for (const file of this._tempFiles) {
                             try {
-                                fs.unlinkSync(file);
+                                if (fs.existsSync(file)) {
+                                    fs.unlinkSync(file);
+                                    logger.debug(`[MCTool] 成功删除3D渲染临时文件: ${file}`);
+                                }
                             } catch (error) {
-                                logger.error(`[MCTool] 删除临时文件失败: ${error.message}`);
+                                logger.debug(`[MCTool] 删除3D渲染临时文件失败（不影响使用）: ${error.message}`);
                             }
                         }
-                    }
-                    this._tempFiles.clear();
+                        this._tempFiles.clear();
+                    }, 1000);
                 }
             }
 
-            // 在发送结果时添加数据来源提示
-            if (isCloudData) {
-                e.reply('数据来源：云端同步');
-            } else {
-                e.reply('数据来源：本地存储');
-            }
-
-            return true;
         } catch (error) {
             logger.error(`[MCTool] 获取用户信息失败: ${error.message}`);
             e.reply(`获取用户信息失败: ${error.message}`);
@@ -1151,30 +1291,45 @@ export class MCUser extends plugin {
             await this.initCloud();
 
             // 2. 获取用户绑定数据
-            let userBindings = [];
+            let mojangBindings = [];
+            let littleSkinBindings = [];
             if (this.cloudAvailable) {
                 try {
-                    const response = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
+                    // 获取 Mojang 绑定
+                    const mojangResponse = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
                         headers: {
                             'X-Bot-Token': this.cloudAPI.token
                         }
                     });
-                    const data = Array.isArray(response) ? response : (response.data || []);
-                    userBindings = data.filter(b => b.isBound === true);
+                    const mojangData = Array.isArray(mojangResponse) ? mojangResponse : (mojangResponse.data || []);
+                    mojangBindings = mojangData.filter(b => b.isBound === true);
+
+                    // 获取 LittleSkin 绑定
+                    const littleSkinResponse = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=littleskin`, {
+                        headers: {
+                            'X-Bot-Token': this.cloudAPI.token
+                        }
+                    });
+                    const littleSkinData = Array.isArray(littleSkinResponse) ? littleSkinResponse : (littleSkinResponse.data || []);
+                    littleSkinBindings = littleSkinData.filter(b => b.isBound === true);
                 } catch (err) {
                     logger.error(`[MCTool] 云端查询失败: ${err.message}`);
                     // 如果云端查询失败，使用本地数据
-                    const bindings = Data.read('mojang_bindings') || {};
-                    userBindings = bindings[e.user_id] || [];
+                    const mojangLocal = Data.read('mojang_bindings') || {};
+                    const littleSkinLocal = Data.read('littleskin_bindings') || {};
+                    mojangBindings = mojangLocal[e.user_id] || [];
+                    littleSkinBindings = littleSkinLocal[e.user_id] || [];
                 }
             } else {
                 // 如果云端不可用，使用本地数据
-                const bindings = Data.read('mojang_bindings') || {};
-                userBindings = bindings[e.user_id] || [];
+                const mojangLocal = Data.read('mojang_bindings') || {};
+                const littleSkinLocal = Data.read('littleskin_bindings') || {};
+                mojangBindings = mojangLocal[e.user_id] || [];
+                littleSkinBindings = littleSkinLocal[e.user_id] || [];
             }
 
-            if (!userBindings || userBindings.length === 0) {
-                e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 mojang <正版用户名> 进行绑定');
+            if (!mojangBindings.length && !littleSkinBindings.length) {
+                e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 mojang/littleskin <用户名> 进行绑定');
                 return false;
             }
 
@@ -1185,34 +1340,76 @@ export class MCUser extends plugin {
             // 获取配置
             const config = getConfig();
             const server = config.skin?.render1?.server || 'https://skin2.qxml.ltd';
-            const definition = 3.5;
-            const transparent = true;
+            const definition = config.skin?.render1?.definition || 3.5;
+            const transparent = config.skin?.render1?.transparent !== false;
 
             await e.reply('正在生成皮肤渲染图像，请耐心等待...');
 
-            // 处理每个绑定账号
-            const renderPromises = userBindings.map(async (binding) => {
+            // 处理 Mojang 账号
+            for (const binding of mojangBindings) {
                 try {
                     const render3DUrl = `${server}/mojang/image/both?name=${binding.username}&definition=${definition}&transparent=${transparent}`;
-                    logger.info(`[MCTool] 尝试渲染皮肤，URL: ${render3DUrl}`);
+                    logger.info(`[MCTool] 尝试渲染 Mojang 皮肤，URL: ${render3DUrl}`);
                     
                     const response = await fetch(render3DUrl);
                     if (!response.ok) {
                         throw new Error(`渲染服务返回错误: ${response.status}`);
                     }
 
-                    // 发送渲染结果
-                    await e.reply(segment.image(render3DUrl));
-                    logger.info(`[MCTool] 皮肤渲染成功: ${binding.username}`);
+                    await e.reply([
+                        `Mojang账号 ${binding.username} 的皮肤：\n`,
+                        segment.image(render3DUrl)
+                    ]);
+                    logger.info(`[MCTool] Mojang皮肤渲染成功: ${binding.username}`);
                 } catch (error) {
-                    logger.error(`[MCTool] 皮肤渲染失败: ${error.message}`);
-                    await e.reply(`皮肤渲染失败: ${error.message}`);
-                    return false;
+                    logger.error(`[MCTool] Mojang皮肤渲染失败: ${error.message}`);
+                    await e.reply(`Mojang账号 ${binding.username} 的皮肤渲染失败: ${error.message}`);
                 }
-            });
+            }
 
-            // 等待所有渲染完成
-            await Promise.all(renderPromises);
+            // 处理 LittleSkin 账号
+            for (const binding of littleSkinBindings) {
+                try {
+                    // 获取 LittleSkin 皮肤信息
+                    const skinResponse = await fetch(`https://littleskin.cn/csl/${binding.username}.json`);
+                    const skinData = await skinResponse.json();
+
+                    if (!skinData.skins || !skinData.skins.slim) {
+                        throw new Error('未找到皮肤信息');
+                    }
+
+                    const skinHash = skinData.skins.slim;
+                    let renderUrl;
+
+                    if (config.skin?.renderType === 1) {
+                        // 行走视图
+                        renderUrl = `${server}/littleskin/image/both?name=${binding.username}&definition=${definition}&transparent=${transparent}`;
+                    } else {
+                        // 站立视图
+                        const render2Config = config.skin?.render2 || {};
+                        const width = render2Config.width || 300;
+                        const height = render2Config.height || 600;
+                        renderUrl = `${server}/render?skin=https://littleskin.cn/textures/${skinHash}&width=${width}&height=${height}&angle=135&angleY=38`;
+                    }
+
+                    logger.info(`[MCTool] 尝试渲染 LittleSkin 皮肤，URL: ${renderUrl}`);
+                    
+                    const response = await fetch(renderUrl);
+                    if (!response.ok) {
+                        throw new Error(`渲染服务返回错误: ${response.status}`);
+                    }
+
+                    await e.reply([
+                        `LittleSkin账号 ${binding.username} 的皮肤：\n`,
+                        segment.image(renderUrl)
+                    ]);
+                    logger.info(`[MCTool] LittleSkin皮肤渲染成功: ${binding.username}`);
+                } catch (error) {
+                    logger.error(`[MCTool] LittleSkin皮肤渲染失败: ${error.message}`);
+                    await e.reply(`LittleSkin账号 ${binding.username} 的皮肤渲染失败: ${error.message}`);
+                }
+            }
+
             return true;
         } catch (error) {
             logger.error(`[MCTool] 皮肤渲染失败: ${error.message}`);
@@ -1307,59 +1504,192 @@ export class MCUser extends plugin {
             const type = e.msg.match(/^#?[Mm][Cc]头像\s*(全身|半身|头部)?/)[1] || '头部';
             const username = e.msg.match(/^#?[Mm][Cc]头像\s*(全身|半身|头部)?\s*(.+)?$/)?.[2]?.trim();
 
+            // 初始化消息数组，用于合并转发
+            const successMessages = [];
+            const errorMessages = [];
+
             // 获取要处理的用户列表
-            let users = [];
+            let mojangUsers = [];
+            let littleSkinUsers = [];
+
+            // 获取用户的显示偏好
+            const displayPreferences = Data.read('display_preferences') || {};
+            const displayMode = displayPreferences[e.user_id] || '全部';
+
+            // 初始化云端API
+            await this.initCloud();
+            logger.info(`[MCTool] 云端API状态: ${this.cloudAvailable ? '可用' : '不可用'}`);
+
             if (username) {
-                // 如果指定了用户名，直接使用
-                users.push({ username });
-            } else {
+                // 如果指定了用户名，需要确定是哪个平台的账号
                 // 初始化云端API
                 await this.initCloud();
                 
-                // 优先使用云端数据
                 if (this.cloudAvailable) {
                     try {
-                        const response = await this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
-                            headers: {
-                                'X-Bot-Token': this.cloudAPI.token
+                        // 同时查询 Mojang 和 LittleSkin 绑定
+                        const [mojangResponse, littleSkinResponse] = await Promise.all([
+                            this.cloudAPI.request(`/api/binding/query?username=${username}&bindType=mojang`, {
+                                headers: { 'X-Bot-Token': this.cloudAPI.token }
+                            }),
+                            this.cloudAPI.request(`/api/binding/query?username=${username}&bindType=littleskin`, {
+                                headers: { 'X-Bot-Token': this.cloudAPI.token }
+                            })
+                        ]);
+
+                        const mojangData = Array.isArray(mojangResponse) ? mojangResponse : (mojangResponse.data || []);
+                        const littleSkinData = Array.isArray(littleSkinResponse) ? littleSkinResponse : (littleSkinResponse.data || []);
+
+                        const mojangBinding = mojangData.find(b => b.isBound === true);
+                        const littleSkinBinding = littleSkinData.find(b => b.isBound === true);
+
+                        if (mojangBinding) {
+                            mojangUsers.push({ ...mojangBinding, platform: 'mojang', uuid: mojangBinding.uuid });
+                        }
+                        if (littleSkinBinding) {
+                            littleSkinUsers.push({ ...littleSkinBinding, platform: 'littleskin', uuid: littleSkinBinding.uuid });
+                        }
+                        if (!mojangBinding && !littleSkinBinding) {
+                            // 如果都没找到，默认作为 Mojang 账号处理
+                            const uuid = await getPlayerUUID(username);
+                            if (uuid) {
+                                mojangUsers.push({ username, platform: 'mojang', uuid });
+                            } else {
+                                throw new Error('无法获取玩家UUID');
                             }
-                        });
-                        const data = Array.isArray(response) ? response : (response.data || []);
-                        users = data.filter(b => b.isBound === true);
+                        }
                     } catch (err) {
                         logger.error(`[MCTool] 云端查询失败: ${err.message}`);
-                        // 云端查询失败时，使用本地数据
-                        const bindings = Data.read('mojang_bindings') || {};
-                        users = bindings[e.user_id] || [];
+                        // 云端查询失败时，尝试获取 UUID
+                        try {
+                            const uuid = await getPlayerUUID(username);
+                            if (uuid) {
+                                mojangUsers.push({ username, platform: 'mojang', uuid });
+                            } else {
+                                throw new Error('无法获取玩家UUID');
+                            }
+                        } catch (error) {
+                            logger.error(`[MCTool] UUID查询失败: ${error.message}`);
+                            throw new Error(`无法获取玩家信息: ${error.message}`);
+                        }
                     }
                 } else {
-                    // 云端不可用时，使用本地数据
-                    const bindings = Data.read('mojang_bindings') || {};
-                    users = bindings[e.user_id] || [];
+                    // 云端不可用时，检查本地数据
+                    const mojangBindings = Data.read('mojang_bindings') || {};
+                    const littleSkinBindings = Data.read('littleskin_bindings') || {};
+                    const lowerUsername = username.toLowerCase();
+
+                    // 检查本地绑定
+                    for (const [qq, bindings] of Object.entries(mojangBindings)) {
+                        const binding = bindings.find(b => b.username.toLowerCase() === lowerUsername && b.isBound !== false);
+                        if (binding) {
+                            mojangUsers.push({ ...binding, platform: 'mojang' });
+                            break;
+                        }
+                    }
+                    for (const [qq, bindings] of Object.entries(littleSkinBindings)) {
+                        const binding = bindings.find(b => b.username.toLowerCase() === lowerUsername && b.isBound !== false);
+                        if (binding) {
+                            littleSkinUsers.push({ ...binding, platform: 'littleskin' });
+                            break;
+                        }
+                    }
+
+                    // 如果本地都没找到，尝试获取 UUID
+                    if (mojangUsers.length === 0 && littleSkinUsers.length === 0) {
+                        try {
+                            const uuid = await getPlayerUUID(username);
+                            if (uuid) {
+                                mojangUsers.push({ username, platform: 'mojang', uuid });
+                            } else {
+                                throw new Error('无法获取玩家UUID');
+                            }
+                        } catch (error) {
+                            logger.error(`[MCTool] UUID查询失败: ${error.message}`);
+                            throw new Error(`无法获取玩家信息: ${error.message}`);
+                        }
+                    }
+                }
+            } else {
+                // 获取用户绑定的所有账号
+                if (this.cloudAvailable) {
+                    try {
+                        logger.info(`[MCTool] 查询用户绑定的账号: ${e.user_id}`);
+                        const [mojangResponse, littleSkinResponse] = await Promise.all([
+                            this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
+                                headers: { 'X-Bot-Token': this.cloudAPI.token }
+                            }),
+                            this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=littleskin`, {
+                                headers: { 'X-Bot-Token': this.cloudAPI.token }
+                            })
+                        ]);
+
+                        const mojangData = Array.isArray(mojangResponse) ? mojangResponse : (mojangResponse.data || []);
+                        const littleSkinData = Array.isArray(littleSkinResponse) ? littleSkinResponse : (littleSkinResponse.data || []);
+
+                        mojangUsers = mojangData
+                            .filter(b => b.isBound === true)
+                            .map(b => ({ ...b, platform: 'mojang', uuid: b.uuid }));
+                        littleSkinUsers = littleSkinData
+                            .filter(b => b.isBound === true)
+                            .map(b => ({ ...b, platform: 'littleskin', uuid: b.uuid }));
+
+                        logger.info(`[MCTool] 云端获取成功，Mojang账号: ${mojangUsers.length}个，LittleSkin账号: ${littleSkinUsers.length}个`);
+                    } catch (err) {
+                        logger.error(`[MCTool] 云端查询失败: ${err.message}`);
+                    }
                 }
 
-                if (!users || users.length === 0) {
-                    e.reply('你还没有绑定任何Minecraft账号，请使用 #mc绑定 mojang <正版用户名> 进行绑定');
-                    return false;
+                if (mojangUsers.length === 0 && littleSkinUsers.length === 0) {
+                    // 如果云端获取失败或没有数据，使用本地数据
+                    const mojangBindings = Data.read('mojang_bindings') || {};
+                    const littleSkinBindings = Data.read('littleskin_bindings') || {};
+                    
+                    mojangUsers = (mojangBindings[e.user_id] || [])
+                        .filter(b => b.isBound !== false)
+                        .map(b => ({ ...b, platform: 'mojang' }));
+                    
+                    littleSkinUsers = (littleSkinBindings[e.user_id] || [])
+                        .filter(b => b.isBound !== false)
+                        .map(b => ({ ...b, platform: 'littleskin' }));
+
+                    logger.info(`[MCTool] 使用本地数据，Mojang账号: ${mojangUsers.length}个，LittleSkin账号: ${littleSkinUsers.length}个`);
                 }
+            }
+
+            // 根据显示模式过滤用户列表
+            let users = [];
+            if (displayMode === '全部' || displayMode === 'mojang') {
+                users.push(...mojangUsers);
+            }
+            if (displayMode === '全部' || displayMode === 'littleskin') {
+                users.push(...littleSkinUsers);
+            }
+
+            logger.info(`[MCTool] 当前显示模式: ${displayMode}，共 ${users.length} 个账号`);
+
+            if (users.length === 0) {
+                e.reply('你还没有绑定任何Minecraft账号，请使用以下命令进行绑定：\n1. Mojang正版账号：#mc绑定 mojang <正版用户名>\n2. LittleSkin账号：#mc绑定 littleskin');
+                return false;
             }
 
             // 转换类型为API参数
             const avatarType = {
                 '全身': 'full',
-                '头部': 'head',
-                '半身': 'big_head'
-            }[type];
+                '半身': 'big_head',
+                '头部': 'head'
+            }[type] || 'head';  // 默认使用头部
 
             let hasError = false;
             // 处理每个用户
             for (const user of users) {
                 try {
-                    logger.info(`[MCTool] 正在生成 ${user.username} 的${type}图像...`);
+                    logger.info(`[MCTool] 正在生成 ${user.username} (${user.platform}) 的${type}图像...`);
                     
-                    // 构建请求URL
-                    const url = `https://mcacg.qxml.ltd/generate/account?player=${encodeURIComponent(user.username)}&avatar_type=${encodeURIComponent(avatarType)}`;
-                    logger.info(`[MCTool] 发送请求: ${url}`);
+                    // 构建请求URL，根据平台使用不同的参数
+                    const url = user.platform === 'littleskin'
+                        ? `https://mcacg.qxml.ltd/generate/account?player=${encodeURIComponent(user.username)}&website=${encodeURIComponent('https://littleskin.cn')}&avatar_type=${encodeURIComponent(avatarType)}`
+                        : `https://mcacg.qxml.ltd/generate/account?player=${encodeURIComponent(user.username)}&avatar_type=${encodeURIComponent(avatarType)}`;
 
                     // 发送生成请求
                     const response = await fetch(url, {
@@ -1369,75 +1699,39 @@ export class MCUser extends plugin {
                         }
                     });
 
-                    // 记录响应状态
-                    logger.info(`[MCTool] API响应状态: ${response.status} ${response.statusText}`);
-
                     if (!response.ok) {
-                        const errorText = await response.text().catch(() => '无法获取错误详情');
-                        logger.error(`[MCTool] API错误响应: ${errorText}`);
                         throw new Error(`生成失败: ${response.status} ${response.statusText}`);
                     }
 
                     const result = await response.json();
-                    logger.info(`[MCTool] API响应数据: ${JSON.stringify(result)}`);
-
-                    if (!result.success) {
-                        throw new Error(result.message || '生成失败: API返回失败状态');
+                    if (!result.success || !result.data?.image) {
+                        throw new Error(result.message || '生成失败');
                     }
 
-                    if (!result.data?.image) {
-                        throw new Error('生成失败: API返回数据缺少图片信息');
-                    }
-
-                    // 将Base64转换为图片并发送
+                    // 将Base64转换为图片
                     const base64Data = result.data.image;
-                    // 检查base64数据是否有效
-                    if (!base64Data.match(/^[A-Za-z0-9+/=]+$/)) {
-                        throw new Error('生成失败: 无效的图片数据');
-                    }
-
                     const imageData = Buffer.from(base64Data, 'base64');
-                    if (imageData.length === 0) {
-                        throw new Error('生成失败: 图片数据为空');
-                    }
-
-                    // 确保临时目录存在
                     const tempDir = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'temp');
                     if (!fs.existsSync(tempDir)) {
                         fs.mkdirSync(tempDir, { recursive: true });
                     }
 
-                    // 保存为临时文件
                     const tempFile = path.join(tempDir, `${user.username}_${type}_${Date.now()}.png`);
                     fs.writeFileSync(tempFile, imageData);
 
-                    // 检查生成的文件
-                    const fileStats = fs.statSync(tempFile);
-                    if (fileStats.size === 0) {
-                        throw new Error('生成失败: 生成的图片文件为空');
-                    }
-
-                    logger.info(`[MCTool] 成功生成图片: ${tempFile} (${fileStats.size} 字节)`);
-
-                    // 发送图片
+                    // 直接发送消息
                     await e.reply([
-                        `${user.username} 的${type}图像：\n`,
+                        `${user.username} (${user.platform === 'littleskin' ? 'LittleSkin' : 'Mojang'}) 的${type}图像：\n`,
                         segment.image(`file:///${tempFile}`)
                     ]);
 
                     // 删除临时文件
                     fs.unlinkSync(tempFile);
                 } catch (error) {
-                    hasError = true;
                     logger.error(`[MCTool] 生成 ${user.username} 的头像失败:`, error);
-                    // 不再立即发送错误消息，而是继续处理其他用户
+                    await e.reply(`生成 ${user.username} (${user.platform === 'littleskin' ? 'LittleSkin' : 'Mojang'}) 的头像失败: ${error.message}`);
                     continue;
                 }
-            }
-
-            // 如果所有用户都处理失败，才发送一次错误消息
-            if (hasError && users.length === 1) {
-                e.reply('获取头像失败，请稍后重试');
             }
 
             return true;
@@ -1885,7 +2179,7 @@ export class MCUser extends plugin {
                 // 保存 token 到云端
                 if (this.cloudAvailable) {
                     try {
-                        const saveTokenResponse = await this.cloudAPI.request('/api/littleskin/token/save', {
+                        await this.cloudAPI.request('/api/littleskin/token/save', {
                             method: 'POST',
                             headers: {
                                 'X-Bot-Token': this.cloudAPI.token,
@@ -1897,12 +2191,7 @@ export class MCUser extends plugin {
                                 token: token.access_token
                             })
                         });
-
-                        if (saveTokenResponse && saveTokenResponse.id) {
-                            logger.info(`[MCTool] Token保存成功，ID: ${saveTokenResponse.id}`);
-                        } else {
-                            logger.error(`[MCTool] Token保存失败: 响应格式不正确`);
-                        }
+                        logger.info(`[MCTool] Token保存成功`);
                     } catch (err) {
                         logger.error(`[MCTool] Token保存失败: ${err.message}`);
                     }
@@ -1923,5 +2212,38 @@ export class MCUser extends plugin {
             e.reply(`绑定失败: ${error.message}`);
             return false;
         }
+    }
+
+    /**
+     * 切换绑定显示
+     * @param {*} e 消息事件
+     */
+    async switchDisplayMode(e) {
+        const match = e.msg.match(/^#?[Mm][Cc]切换绑定\s*(全部|mojang|littleskin)?$/);
+        const mode = match[1]?.toLowerCase();
+        
+        if (!mode) {
+            await e.reply('请指定要切换的显示模式：\n#mc切换绑定 全部/mojang/littleskin');
+            return false;
+        }
+        
+        // 读取显示偏好
+        const displayPreferences = Data.read('display_preferences') || {};
+        
+        // 更新用户的显示偏好
+        displayPreferences[e.user_id] = mode;
+        
+        // 保存更新后的偏好
+        Data.write('display_preferences', displayPreferences);
+        
+        // 返回确认消息
+        const modeText = {
+            'mojang': 'Mojang正版账号',
+            'littleskin': 'LittleSkin账号',
+            '全部': '全部账号'
+        }[mode];
+        
+        await e.reply(`已切换为显示${modeText}`);
+        return true;
     }
 } 

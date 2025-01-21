@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 logger.info('------------------------------------')
-logger.info('MCTool-Plugin v1.0.0')
+logger.info('MCTool-Plugin v4.2.1')
 logger.info('插件正在加载中...')
 logger.info('作者：浅巷墨黎')
 logger.info('QQ群：303104111')
