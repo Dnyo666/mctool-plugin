@@ -1,6 +1,5 @@
 import { Data, getConfig } from './mc-utils.js'
 import common from '../../../lib/common/common.js'
-import logger from '../models/logger.js'
 import fs from 'fs'
 import path from 'path'
 

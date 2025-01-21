@@ -1,7 +1,6 @@
 import { Data, getPlayerUUID, getConfig, initCloudAPI } from './mc-utils.js'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import fs from 'fs'
-import logger from '../models/logger.js'
 import path from 'path'
 
 export class MCUser extends plugin {
@@ -403,7 +402,6 @@ export class MCUser extends plugin {
      * @param {*} e 消息事件
      */
     async bindUser(e) {
-        logger.info(`[MCTool] 触发绑定命令: ${e.msg}`);
         const match = e.msg.match(/^#?[Mm][Cc]绑定\s+mojang\s+(.+)$/);
         const username = match[1].trim();
 
@@ -413,14 +411,22 @@ export class MCUser extends plugin {
         }
 
         try {
-            // 1. 初始化云端API
+            // 1. 先通过 PlayerDB API 验证用户名并获取 UUID
+            const result = await getPlayerUUID(username);
+            if (!result || !result.uuid) {
+                e.reply(`未找到该用户名，请确认是否为有效的正版用户名`);
+                return false;
+            }
+            const { uuid, raw_id } = result;
+
+            // 2. 初始化云端API
             await this.initCloud();
             if (!this.cloudAvailable) {
                 e.reply('云端服务不可用，暂时无法进行绑定操作');
                 return false;
             }
 
-            // 2. 检查用户名是否已被绑定
+            // 3. 检查用户名是否已被绑定
             try {
                 const checkResponse = await this.cloudAPI.request(`/api/binding/query?username=${username}&bindType=mojang`, {
                     headers: {
@@ -446,18 +452,6 @@ export class MCUser extends plugin {
                 }
             } catch (err) {
                 // 查询失败不阻止绑定流程
-                logger.error(`[MCTool] 检查用户名绑定状态失败: ${err.message}`);
-            }
-
-            // 3. 获取UUID（根据不同类型使用不同的API）
-            let uuid, raw_id;
-            const result = await getPlayerUUID(username);
-            uuid = result.uuid;
-            raw_id = result.raw_id;
-
-            if (!uuid) {
-                e.reply(`未找到该用户名，请确认是否为有效的正版用户名`);
-                return false;
             }
 
             // 4. 云端绑定
@@ -502,29 +496,26 @@ export class MCUser extends plugin {
                 };
 
                 if (existingBindingIndex !== -1) {
-                    // 更新现有绑定
                     bindings[e.user_id][existingBindingIndex] = bindingData;
                 } else {
-                    // 添加新绑定
                     bindings[e.user_id].push(bindingData);
                 }
 
+                // 更新用户名索引
                 userIndex[username.toLowerCase()] = e.user_id;
 
-                Data.write(`mojang_bindings`, bindings);
-                Data.write(`mojang_username_index`, userIndex);
+                Data.write('mojang_bindings', bindings);
+                Data.write('mojang_username_index', userIndex);
 
-                e.reply(`绑定成功\n类型：mojang\n用户名：${username}\nUUID：${uuid}`);
+                e.reply(`绑定成功！\n用户名: ${username}\nUUID: ${uuid}`);
                 return true;
+
             } catch (err) {
-                if (err.message.includes('已被绑定')) {
-                    e.reply('该用户名已被其他QQ号绑定');
-                    return false;
-                }
-                throw err;
+                e.reply(`绑定失败: ${err.message}`);
+                return false;
             }
+
         } catch (error) {
-            logger.error(`[MCTool] 绑定失败: ${error.message}`);
             e.reply(`绑定失败: ${error.message}`);
             return false;
         }
@@ -1068,202 +1059,87 @@ export class MCUser extends plugin {
     }
 
     /**
-     * 查询用户的UUID
+     * 查询玩家UUID
      * @param {*} e 消息事件
      */
     async queryUUID(e) {
-        const username = e.msg.match(/^#?[Mm][Cc](?:uuid|uid|id)(?:\s+(.+))?$/)[1]?.trim();
-
         try {
-            // 1. 初始化云端API
-            await this.initCloud();
+            const username = e.msg.match(/^#?[Mm][Cc](?:uuid|uid|id)\s*(.+)?$/)?.[1]?.trim();
             
-            // 2. 如果没有指定用户名，查询用户自己的绑定账号
             if (!username) {
-                if (!this.cloudAvailable) {
-                    // 从本地读取数据
-                    const localBindings = Data.read('mojang_bindings', {});
-                    const littleSkinBindings = Data.read('littleskin_bindings', {});
-                    
-                    const userMojangBindings = localBindings[e.user_id] || [];
-                    const userLittleSkinBindings = littleSkinBindings[e.user_id] || [];
+                // 如果没有指定用户名，获取用户绑定的账号
+                await this.initCloud();
 
-                    if (userMojangBindings.length === 0 && userLittleSkinBindings.length === 0) {
-                        e.reply('你还没有绑定任何Minecraft账号');
-                        return false;
+                let mojangUsers = [];
+                let littleSkinUsers = [];
+
+                if (this.cloudAvailable) {
+                    try {
+                        const [mojangResponse, littleSkinResponse] = await Promise.all([
+                            this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
+                                headers: { 'X-Bot-Token': this.cloudAPI.token }
+                            }),
+                            this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=littleskin`, {
+                                headers: { 'X-Bot-Token': this.cloudAPI.token }
+                            })
+                        ]);
+
+                        const mojangData = Array.isArray(mojangResponse) ? mojangResponse : (mojangResponse.data || []);
+                        const littleSkinData = Array.isArray(littleSkinResponse) ? littleSkinResponse : (littleSkinResponse.data || []);
+
+                        mojangUsers = mojangData.filter(b => b.isBound === true);
+                        littleSkinUsers = littleSkinData.filter(b => b.isBound === true);
+                    } catch (err) {
+                        // 云端查询失败
                     }
-
-                    // 返回所有绑定账号的信息
-                    const msg = ['你的绑定账号UUID如下：'];
-
-                    if (userMojangBindings.length > 0) {
-                        msg.push('\n== Mojang正版账号 ==');
-                        for (const binding of userMojangBindings) {
-                            msg.push(`用户名：${binding.username}`, `UUID：${binding.uuid}`);
-                        }
-                    }
-
-                    if (userLittleSkinBindings.length > 0) {
-                        msg.push('\n== LittleSkin账号 ==');
-                        for (const binding of userLittleSkinBindings) {
-                            msg.push(`用户名：${binding.username}`, `UUID：${binding.uuid}`);
-                        }
-                    }
-
-                    e.reply(msg.join('\n'));
-                    return true;
                 }
 
-                try {
-                    logger.info(`[MCTool] 查询用户绑定的UUID: ${e.user_id}`);
-                    // 查询Mojang和LittleSkin的绑定
-                    const [mojangResponse, littleSkinResponse] = await Promise.all([
-                        this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=mojang`, {
-                            headers: {
-                                'X-Bot-Token': this.cloudAPI.token
-                            }
-                        }),
-                        this.cloudAPI.request(`/api/binding/query?qqNumber=${e.user_id}&bindType=littleskin`, {
-                            headers: {
-                                'X-Bot-Token': this.cloudAPI.token
-                            }
-                        })
-                    ]);
-
-                    const mojangData = Array.isArray(mojangResponse) ? mojangResponse : (mojangResponse.data || []);
-                    const littleSkinData = Array.isArray(littleSkinResponse) ? littleSkinResponse : (littleSkinResponse.data || []);
+                if (mojangUsers.length === 0 && littleSkinUsers.length === 0) {
+                    // 如果云端获取失败或没有数据，使用本地数据
+                    const mojangBindings = Data.read('mojang_bindings') || {};
+                    const littleSkinBindings = Data.read('littleskin_bindings') || {};
                     
-                    const mojangBindings = mojangData.filter(b => b.isBound === true);
-                    const littleSkinBindings = littleSkinData.filter(b => b.isBound === true);
+                    mojangUsers = (mojangBindings[e.user_id] || []).filter(b => b.isBound !== false);
+                    littleSkinUsers = (littleSkinBindings[e.user_id] || []).filter(b => b.isBound !== false);
+                }
 
-                    if (mojangBindings.length === 0 && littleSkinBindings.length === 0) {
-                        e.reply('你还没有绑定任何Minecraft账号');
-                        return false;
+                if (mojangUsers.length === 0 && littleSkinUsers.length === 0) {
+                    e.reply('你还没有绑定任何Minecraft账号，请使用以下命令进行绑定：\n1. Mojang正版账号：#mc绑定 mojang <正版用户名>\n2. LittleSkin账号：#mc绑定 littleskin');
+                    return false;
+                }
+
+                let reply = '你的绑定账号UUID如下：\n\n';
+
+                if (mojangUsers.length > 0) {
+                    reply += '== Mojang正版账号 ==\n';
+                    for (const user of mojangUsers) {
+                        reply += `用户名：${user.username}\nUUID：${user.uuid}\n`;
                     }
+                    reply += '\n';
+                }
 
-                    // 返回所有绑定账号的信息
-                    const msg = ['你的绑定账号UUID如下：'];
-
-                    if (mojangBindings.length > 0) {
-                        msg.push('\n== Mojang正版账号 ==');
-                        for (const binding of mojangBindings) {
-                            msg.push(`用户名：${binding.username}`, `UUID：${binding.uuid}`);
-                        }
+                if (littleSkinUsers.length > 0) {
+                    reply += '== LittleSkin账号 ==\n';
+                    for (const user of littleSkinUsers) {
+                        reply += `用户名：${user.username}\nUUID：${user.uuid}\n`;
                     }
+                }
 
-                    if (littleSkinBindings.length > 0) {
-                        msg.push('\n== LittleSkin账号 ==');
-                        for (const binding of littleSkinBindings) {
-                            msg.push(`用户名：${binding.username}`, `UUID：${binding.uuid}`);
-                        }
-                    }
-
-                    e.reply(msg.join('\n'));
+                await e.reply(reply.trim());
+                return true;
+            } else {
+                // 如果指定了用户名，直接从 PlayerDB API 获取 UUID
+                const result = await getPlayerUUID(username);
+                if (result && result.uuid) {
+                    await e.reply(`玩家 ${username} 的UUID信息：\n格式化UUID：${result.uuid}\n原始UUID：${result.raw_id}`);
                     return true;
-                } catch (err) {
-                    logger.error(`[MCTool] 查询绑定UUID失败: ${err.message}`);
-                    e.reply('查询绑定UUID失败，请稍后重试');
+                } else {
+                    await e.reply(`未找到玩家 ${username} 的UUID信息`);
                     return false;
                 }
             }
-
-            // 3. 如果指定了用户名，优先从云端获取，云端不可用时从本地获取
-            let uuid = null;
-            let source = '';
-            let bindType = '';
-
-            if (this.cloudAvailable) {
-                try {
-                    logger.info(`[MCTool] 从云端查询UUID: ${username}`);
-                    // 同时查询Mojang和LittleSkin绑定
-                    const [mojangResponse, littleSkinResponse] = await Promise.all([
-                        this.cloudAPI.request(`/api/binding/query?username=${username}&bindType=mojang`, {
-                            headers: {
-                                'X-Bot-Token': this.cloudAPI.token
-                            }
-                        }),
-                        this.cloudAPI.request(`/api/binding/query?username=${username}&bindType=littleskin`, {
-                            headers: {
-                                'X-Bot-Token': this.cloudAPI.token
-                            }
-                        })
-                    ]);
-
-                    const mojangData = Array.isArray(mojangResponse) ? mojangResponse : (mojangResponse.data || []);
-                    const littleSkinData = Array.isArray(littleSkinResponse) ? littleSkinResponse : (littleSkinResponse.data || []);
-                    
-                    const mojangBinding = mojangData.find(b => b.isBound === true);
-                    const littleSkinBinding = littleSkinData.find(b => b.isBound === true);
-                    
-                    if (mojangBinding) {
-                        uuid = mojangBinding.uuid;
-                        source = '云端数据 (Mojang)';
-                        bindType = 'mojang';
-                        logger.info(`[MCTool] 从云端获取到Mojang UUID: ${uuid}`);
-                    } else if (littleSkinBinding) {
-                        uuid = littleSkinBinding.uuid;
-                        source = '云端数据 (LittleSkin)';
-                        bindType = 'littleskin';
-                        logger.info(`[MCTool] 从云端获取到LittleSkin UUID: ${uuid}`);
-                    }
-                } catch (err) {
-                    logger.error(`[MCTool] 云端查询失败: ${err.message}`);
-                }
-            }
-
-            // 4. 如果云端没有找到，从本地查找
-            if (!uuid) {
-                logger.info(`[MCTool] 从本地查询UUID: ${username}`);
-                const mojangIndex = Data.read('mojang_username_index', {});
-                const littleSkinIndex = Data.read('littleskin_username_index', {});
-                
-                const lowerUsername = username.toLowerCase();
-                let qqNumber = mojangIndex[lowerUsername] || littleSkinIndex[lowerUsername];
-                
-                if (qqNumber) {
-                    const mojangBindings = Data.read('mojang_bindings', {});
-                    const littleSkinBindings = Data.read('littleskin_bindings', {});
-                    
-                    const mojangBinding = mojangBindings[qqNumber]?.find(b => b.username.toLowerCase() === lowerUsername);
-                    const littleSkinBinding = littleSkinBindings[qqNumber]?.find(b => b.username.toLowerCase() === lowerUsername);
-                    
-                    if (mojangBinding) {
-                        uuid = mojangBinding.uuid;
-                        source = '本地数据 (Mojang)';
-                        bindType = 'mojang';
-                        logger.info(`[MCTool] 从本地获取到Mojang UUID: ${uuid}`);
-                    } else if (littleSkinBinding) {
-                        uuid = littleSkinBinding.uuid;
-                        source = '本地数据 (LittleSkin)';
-                        bindType = 'littleskin';
-                        logger.info(`[MCTool] 从本地获取到LittleSkin UUID: ${uuid}`);
-                    }
-                }
-            }
-
-            // 5. 返回结果
-            if (uuid) {
-                const msg = [
-                    `用户名：${username}`,
-                    `UUID：${uuid}`,
-                    `类型：${bindType === 'mojang' ? 'Mojang正版' : 'LittleSkin'}`,
-                    `数据来源：${source}`
-                ];
-                
-                e.reply(msg.join('\n'));
-                return true;
-            } else {
-                if (!this.cloudAvailable) {
-                    e.reply('云端连接失败，本机器人无该账号数据');
-                } else {
-                    e.reply('未找到该用户名的UUID');
-                }
-                return false;
-            }
-
         } catch (error) {
-            logger.error(`[MCTool] 查询UUID失败: ${error.message}`);
-            e.reply(`查询UUID失败: ${error.message}`);
+            await e.reply(`查询UUID失败: ${error.message}`);
             return false;
         }
     }
