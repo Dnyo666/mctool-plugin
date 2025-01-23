@@ -1,0 +1,18 @@
+# MCS Manager 配置
+mcsmanager:
+  # 用户数据配置
+  userdata:
+    # 用户数据存储路径
+    path: ./data/mctool/mcsuserdata.json
+  # 默认配置
+  defaults:
+    # MCS Manager 面板地址
+    baseUrl: http://localhost:23333
+    # API 密钥
+    apiKey: ""
+    # 实例配置
+    instances:
+      # 默认实例
+      default: ""
+      # 实例列表
+      list: []
