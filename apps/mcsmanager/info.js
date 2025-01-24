@@ -1,6 +1,9 @@
 import plugin from '../../../../lib/plugins/plugin.js'
 import McsInfo from '../../models/mcsmanager/app/info.js'
 
+// #mcs overview 获取面板概览信息
+// #mcs users 获取用户列表·
+
 export class MCSManagerInfo extends plugin {
   constructor() {
     super({
@@ -14,7 +17,7 @@ export class MCSManagerInfo extends plugin {
           fnc: 'overview'
         },
         {
-          reg: '^#?(mcs|MCS)\\s*(用户|users)\\s*(\\d+)?$',
+          reg: '^#?(mcs|MCS)\\s*(用户列表|users)\\s*(\\d+)?$',
           fnc: 'users'
         }
       ]

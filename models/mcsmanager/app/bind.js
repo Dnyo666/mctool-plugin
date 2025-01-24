@@ -1,8 +1,8 @@
-import UserData from '../user/userdata.js';
+import McsAPI from '../../../components/mcsmanager/mcs-api.js'
 
 export default class McsBindApp {
   constructor() {
-    this.userData = new UserData();
+    this.mcsApi = new McsAPI()
   }
 
   /**
@@ -11,42 +11,167 @@ export default class McsBindApp {
    * @returns {Object|null} 解析结果
    */
   parseBindCommand(command) {
-    // 移除命令前缀并分割参数
-    const params = command.replace(/^#?(MCS|mcs) ?(绑定|bind)\s*/, '').trim().split(/\s+/);
+    const params = command.replace(/^#?(mcs|MCS)\s*(绑定|bind)\s*/, '').trim().split(/\s+/)
     
     if (params.length !== 2) {
-      return null;
+      return null
     }
 
-    const [url, apiKey] = params;
+    const [url, apiKey] = params
     
-    // 验证URL格式
     try {
-      new URL(url);
+      new URL(url)
     } catch (error) {
-      return null;
+      return null
     }
 
-    return { url, apiKey };
+    return { url, apiKey }
   }
 
   /**
-   * 执行绑定操作
-   * @param {string} userId 用户ID
-   * @param {string} url MCS Manager URL
+   * 绑定MCS Manager
+   * @param {string} userId QQ号
+   * @param {string} url 面板URL
    * @param {string} apiKey API密钥
-   * @returns {Promise<boolean>} 绑定结果
    */
   async bindMcsManager(userId, url, apiKey) {
     try {
-      await this.userData.updateUserData(userId, {
+      // 先保存基本信息以便获取用户列表
+      await global.mcsUserData.updateUserData(userId, {
         baseUrl: url,
         apiKey: apiKey
       });
+
+      // 获取用户列表以获取守护进程ID
+      const userListData = await this.mcsApi.getUserList(userId, {
+        page: 1,
+        page_size: 20
+      });
+
+      // 获取当前用户信息
+      const currentUser = userListData.data.find(user => user.apiKey === apiKey);
+      if (!currentUser) {
+        throw new Error('未找到对应的用户信息');
+      }
+
+      // 获取用户的第一个实例的守护进程ID
+      const daemonId = currentUser.instances?.[0]?.daemonId;
+      if (!daemonId) {
+        throw new Error('未找到可用的守护进程，请先在面板中分配实例');
+      }
+
+      // 更新用户数据，包含守护进程信息
+      await global.mcsUserData.updateUserData(userId, {
+        baseUrl: url,
+        apiKey: apiKey,
+        daemonId: daemonId,
+        uuid: currentUser.uuid,
+        userName: currentUser.userName,
+        instances: {
+          list: currentUser.instances.map(inst => ({
+            instanceUuid: inst.instanceUuid,
+            daemonId: inst.daemonId,
+            name: inst.name || '',
+            type: inst.type || ''
+          })),
+          default: currentUser.instances[0]?.instanceUuid || ''
+        }
+      });
+
+      logger.mark(`[MCS Bind] 绑定成功: ${currentUser.userName} (${currentUser.uuid})`);
       return true;
     } catch (error) {
-      logger.error(`[MCS Bind] 绑定失败: ${error}`);
-      return false;
+      logger.error(`[MCS Bind] 绑定失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 解绑MCS Manager
+   * @param {string} userId 用户ID
+   */
+  async unbindMcsManager(userId) {
+    try {
+      await global.mcsUserData.deleteUserData(userId)
+      return true
+    } catch (error) {
+      logger.error(`[MCS Bind] 解绑失败: ${error}`)
+      throw error
+    }
+  }
+
+  /**
+   * 同步用户实例信息
+   * @param {string} userId QQ号
+   * @returns {Object} 同步结果
+   */
+  async syncInstances(userId) {
+    try {
+      // 检查用户是否已绑定
+      if (!global.mcsUserData.isUserBound(userId)) {
+        throw new Error('用户未绑定面板')
+      }
+
+      // 获取用户列表数据
+      const userListData = await this.mcsApi.getUserList(userId, {
+        page: 1,
+        page_size: 20
+      })
+
+      // 获取当前用户的数据
+      const currentUserData = global.mcsUserData.getUserData(userId)
+      const userData = userListData.data.find(user => user.apiKey === currentUserData.apiKey)
+
+      if (!userData) {
+        throw new Error('未找到对应的用户信息')
+      }
+
+      // 保存用户UUID和实例信息
+      await global.mcsUserData.updateUserData(userId, {
+        uuid: userData.uuid, // 保存用户UUID
+        userName: userData.userName, // 保存用户名
+        instances: {
+          list: userData.instances.map(inst => ({
+            instanceUuid: inst.instanceUuid,
+            daemonId: inst.daemonId,
+            name: inst.name || '', // 如果API返回了实例名称
+            type: inst.type || '' // 如果API返回了实例类型
+          })),
+          default: userData.instances[0]?.instanceUuid || ''
+        }
+      })
+
+      return {
+        success: true,
+        instanceCount: userData.instances.length,
+        instances: userData.instances,
+        userName: userData.userName,
+        uuid: userData.uuid
+      }
+    } catch (error) {
+      logger.error(`[MCS Bind] 同步实例失败:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 获取绑定信息
+   * @param {string} userId QQ号
+   * @returns {Object} 绑定信息
+   */
+  async getBindInfo(userId) {
+    try {
+      const data = await global.mcsUserData.getUserData(userId)
+      return {
+        baseUrl: data.baseUrl,
+        apiKey: data.apiKey,
+        uuid: data.uuid,
+        userName: data.userName,
+        instances: data.instances
+      }
+    } catch (error) {
+      logger.error(`[MCS Bind] 获取绑定信息失败: ${error}`)
+      throw error
     }
   }
 

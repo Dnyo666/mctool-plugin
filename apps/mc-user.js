@@ -1928,9 +1928,9 @@ export class MCUser extends plugin {
             if (selfBoundProfiles.length > 0) {
                 resultMessage += `已绑定到当前QQ的角色:\n`;
                 selfBoundProfiles.forEach(profile => {
-                    resultMessage += `${profile.name} (UUID: ${profile.id})\n`;
+                    resultMessage += `- ${profile.name}\n`;
+                    resultMessage += `  UUID: ${profile.id}\n\n`;
                 });
-                resultMessage += '\n';
             }
 
             // 处理新的绑定
@@ -1973,7 +1973,14 @@ export class MCUser extends plugin {
                         Data.write('littleskin_bindings', localBindings);
                         Data.write('littleskin_username_index', localIndex);
 
-                        // 然后尝试云端绑定
+                        // 添加到绑定结果
+                        bindResults.push({
+                            profile,
+                            success: true,
+                            message: '绑定成功'
+                        });
+
+                        // 云端绑定部分保持不变
                         if (this.cloudAvailable) {
                             // 先查询云端状态以确保不会覆盖更新的数据
                             const queryResponse = await this.cloudAPI.request(`/api/binding/query?username=${profile.name}&bindType=littleskin`, {
@@ -2042,13 +2049,11 @@ export class MCUser extends plugin {
 
                 // 显示绑定结果
                 if (bindResults.length > 0) {
-                    resultMessage += `新绑定的角色:\n`;
+                    resultMessage += `新绑定的角色:`;
                     bindResults.forEach(result => {
-                        if (result.success) {
-                            resultMessage += `${result.profile.name} (UUID: ${result.profile.id}) - ${result.message}\n`;
-                        } else {
-                            resultMessage += `${result.profile.name} (UUID: ${result.profile.id}) - ${result.message}\n`;
-                        }
+                        resultMessage += `- ${result.profile.name}\n`;
+                        resultMessage += `  UUID: ${result.profile.id}\n`;
+                        resultMessage += `  状态: ${result.message}\n`;
                     });
                 }
 
