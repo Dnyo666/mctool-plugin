@@ -172,7 +172,7 @@ mod:
                 use3D: false,
                 renderType: 1,
                 render1: {
-                    server: 'https://skin2.qxml.ltd',
+                    server: 'https://skin2.ixiaojiu.love',
                     definition: 1.5,
                     transparent: true
                 },
@@ -506,12 +506,12 @@ export function supportGuoba() {
                 {
                     field: 'skin.render1.server',
                     label: '行走视图服务器',
-                    bottomHelpMessage: '行走视图渲染服务器地址，公用API：https://skin2.qxml.ltd',
+                    bottomHelpMessage: '行走视图渲染服务器地址，公用API：https://skin2.ixiaojiu.love',
                     component: 'Input',
                     required: false,
-                    defaultValue: 'https://skin2.qxml.ltd',
+                    defaultValue: 'https://skin2.ixiaojiu.love',
                     componentProps: {
-                        placeholder: 'https://skin2.qxml.ltd'
+                        placeholder: 'https://skin2.ixiaojiu.love'
                     }
                 },
                 {
@@ -537,7 +537,7 @@ export function supportGuoba() {
                 {
                     field: 'skin.render2.server',
                     label: '站立视图服务器',
-                    bottomHelpMessage: '站立视图渲染服务器地址，公用API：http://skin.qxml.ltd',
+                    bottomHelpMessage: '站立视图渲染服务器地址，公用API：http://skin.ixiaojiu.love',
                     component: 'Input',
                     required: false,
                     defaultValue: 'http://127.0.0.1:3006',
@@ -707,13 +707,13 @@ export function supportGuoba() {
                             use3D: data.skin.use3D ?? false,  // 是否使用3D渲染
                             renderType: data.skin.renderType ?? 1,  // 渲染方案选择
                             render1: {
-                                server: data.skin.render1?.server || 'http://skin.qxml.ltd',
+                                server: data.skin.render1?.server || 'https://skin2.ixiaojiu.love',
                                 endpoint: data.skin.render1?.endpoint || '/render',
                                 width: data.skin.render1?.width || 300,
                                 height: data.skin.render1?.height || 600
                             },
                             render2: {
-                                server: data.skin.render2?.server || 'https://skin2.qxml.ltd',
+                                server: data.skin.render2?.server || 'https://skin2.ixiaojiu.love',
                                 definition: data.skin.render2?.definition || 1.5,
                                 transparent: data.skin.render2?.transparent ?? true
                             }
