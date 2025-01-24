@@ -134,6 +134,8 @@ export default class UserData {
             const defaults = this.config?.defaults || {
                 baseUrl: "http://localhost:23333",
                 apiKey: "",
+                uuid: "",  // 添加uuid字段
+                userName: "", // 添加userName字段
                 instances: {
                     default: "",
                     list: []
@@ -143,6 +145,8 @@ export default class UserData {
             this.userData[userId] = {
                 baseUrl: this.formatUrl(defaults.baseUrl),
                 apiKey: defaults.apiKey,
+                uuid: defaults.uuid,  // 初始化uuid
+                userName: defaults.userName, // 初始化userName
                 instances: {
                     default: defaults.instances.default,
                     list: [...(defaults.instances.list || [])]
@@ -173,6 +177,8 @@ export default class UserData {
             this.userData[userId] = {
                 baseUrl: this.formatUrl(data.baseUrl) || this.userData[userId].baseUrl,
                 apiKey: data.apiKey || this.userData[userId].apiKey,
+                uuid: data.uuid || this.userData[userId].uuid || '', // 更新uuid
+                userName: data.userName || this.userData[userId].userName || '', // 更新userName
                 instances: {
                     default: data.instances?.default || this.userData[userId].instances.default,
                     list: data.instances?.list || [...this.userData[userId].instances.list]
