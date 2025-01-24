@@ -6,3 +6,4 @@ config/config.yaml
 data
 data.db
 temp
+config/mcsconfig.yaml
