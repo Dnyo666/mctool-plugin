@@ -17,7 +17,7 @@ export class MCSManagerInfo extends plugin {
           fnc: 'overview'
         },
         {
-          reg: '^#?(mcs|MCS)\\s*(用户|users)\\s*(\\d+)?$',
+          reg: '^#?(mcs|MCS)\\s*(用户列表|users)\\s*(\\d+)?$',
           fnc: 'users'
         }
       ]

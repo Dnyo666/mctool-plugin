@@ -44,6 +44,18 @@ export default class McsInstanceApp {
         page_size: params.page_size || 20 // 增大页大小以获取所有实例
       });
 
+      // 更新配置文件中的实例信息
+      configuredInstances.forEach(configInst => {
+        const apiInst = result.data.find(inst => inst.instanceUuid === configInst.instanceUuid);
+        if (apiInst) {
+          configInst.name = apiInst.config.nickname || '未命名';
+          configInst.type = apiInst.config.type || 'universal';
+        }
+      });
+
+      // 保存更新后的用户数据
+      global.mcsUserData.updateUserData(userId, userData);
+
       // 按配置文件顺序重新排列实例
       const orderedInstances = configuredInstances.map(configInst => {
         const inst = result.data.find(apiInst => apiInst.instanceUuid === configInst.instanceUuid);
