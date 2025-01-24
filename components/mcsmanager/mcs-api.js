@@ -347,47 +347,49 @@ export default class McsAPI {
    * 获取实例列表
    * @param {string} qq QQ号
    * @param {Object} params 查询参数
-   * @param {number} params.page 页码
-   * @param {number} params.page_size 每页数量
-   * @returns {Promise<Object>} 实例列表数据
+   * @returns {Promise<Object>} 实例列表
    */
   async getInstanceList(qq, params = {}) {
     await this.initUserConfig(qq);
     try {
-      // 获取用户数据
+      // 获取用户数据以获取 daemonId
       const userData = await global.mcsUserData.getUserData(qq);
       if (!userData?.instances?.list?.[0]?.daemonId) {
         throw new Error('未找到守护进程ID，请先使用 #mcs bind 重新绑定面板');
       }
 
-      const daemonId = userData.instances.list[0].daemonId;
-
+      // 构建查询参数
       const queryParams = new URLSearchParams({
-        daemonId: daemonId,
         page: params.page || 1,
-        page_size: params.page_size || 20,
-        instance_name: '',
-        status: ''
+        page_size: params.page_size || 50,
+        instance_name: '',  // 空字符串表示不过滤名称
+        status: '',        // 空字符串表示不过滤状态
+        daemonId: params.daemonId || userData.instances.list[0].daemonId
       });
 
+      // 修正API路径
       const url = this.buildUrl(`/api/service/remote_service_instances?${queryParams}`);
 
       logger.debug(`[MCS API] 获取实例列表请求: ${url}`);
-      logger.debug(`[MCS API] 使用守护进程ID: ${daemonId}`);
+      if (params.daemonId) {
+        logger.debug(`[MCS API] 使用守护进程ID: ${params.daemonId}`);
+      }
 
       const response = await fetch(url, {
         method: 'GET',
         headers: this.headers
       });
 
-      const responseData = await this.handleResponse(response);
+      const data = await this.handleResponse(response);
       
+      // 格式化返回数据
       return {
-        page: responseData.page,
-        pageSize: responseData.pageSize,
-        maxPage: responseData.maxPage,
-        data: (responseData.data || []).map(inst => ({
+        page: data.page,
+        pageSize: data.pageSize,
+        maxPage: data.maxPage,
+        data: (data.data || []).map(inst => ({
           instanceUuid: inst.instanceUuid,
+          daemonId: inst.daemonId || params.daemonId || userData.instances.list[0].daemonId,
           started: inst.started,
           status: inst.status,
           config: {
@@ -404,6 +406,7 @@ export default class McsAPI {
           }
         }))
       };
+
     } catch (error) {
       logger.error(`[MCS API] 获取实例列表失败:`, error);
       throw error;

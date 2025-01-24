@@ -36,51 +36,61 @@ export default class McsInstanceApp {
 
       // 从用户数据中获取实例列表顺序
       const userData = global.mcsUserData.getUserData(userId);
-      const configuredInstances = userData.instances.list;
 
-      // 获取实例详细信息
-      const result = await this.mcsApi.getInstanceList(userId, {
-        page: params.page || 1,
-        page_size: params.page_size || 20 // 增大页大小以获取所有实例
-      });
+      // 获取所有不同的守护进程ID
+      const daemonIds = [...new Set(userData.instances.list.map(inst => inst.daemonId))];
 
-      // 更新配置文件中的实例信息
-      configuredInstances.forEach(configInst => {
-        const apiInst = result.data.find(inst => inst.instanceUuid === configInst.instanceUuid);
-        if (apiInst) {
-          configInst.name = apiInst.config.nickname || '未命名';
-          configInst.type = apiInst.config.type || 'universal';
+      // 存储所有实例
+      const allInstances = [];
+
+      // 获取每个守护进程的实例列表
+      for (const daemonId of daemonIds) {
+        try {
+          const result = await this.mcsApi.getInstanceList(userId, {
+            page: 1,
+            page_size: 50,
+            daemonId: daemonId
+          });
+
+          // 添加该守护进程下的所有实例
+          allInstances.push(...result.data.map(inst => ({
+            uuid: inst.instanceUuid,
+            name: inst.config.nickname || '未命名',
+            type: inst.config.type || 'universal',
+            state: inst.status,
+            stateName: this.getStateName(inst.status),
+            started: inst.started,
+            createTime: inst.config.createDatetime,
+            lastTime: inst.config.lastDatetime,
+            autoStart: inst.config.eventTask?.autoStart || false,
+            autoRestart: inst.config.eventTask?.autoRestart || false,
+            daemonId: daemonId
+          })));
+
+        } catch (error) {
+          logger.warn(`[MCS Instance] 获取守护进程 ${daemonId} 的实例列表失败:`, error);
+          // 继续处理其他守护进程
         }
-      });
+      }
+
+      // 更新配置文件中的实例列表
+      userData.instances.list = allInstances.map(inst => ({
+        instanceUuid: inst.uuid,
+        daemonId: inst.daemonId,
+        name: inst.name,
+        type: inst.type
+      }));
 
       // 保存更新后的用户数据
       global.mcsUserData.updateUserData(userId, userData);
 
-      // 按配置文件顺序重新排列实例
-      const orderedInstances = configuredInstances.map(configInst => {
-        const inst = result.data.find(apiInst => apiInst.instanceUuid === configInst.instanceUuid);
-        if (!inst) return null;
-        return {
-          uuid: inst.instanceUuid,
-          name: inst.config.nickname || configInst.name || '未命名',
-          type: inst.config.type || configInst.type || 'universal',
-          state: inst.status,
-          stateName: this.getStateName(inst.status),
-          started: inst.started,
-          createTime: inst.config.createDatetime,
-          lastTime: inst.config.lastDatetime,
-          autoStart: inst.config.eventTask?.autoStart || false,
-          autoRestart: inst.config.eventTask?.autoRestart || false
-        };
-      }).filter(Boolean);
-
       return {
         success: true,
         page: 1,
-        pageSize: orderedInstances.length,
-        total: orderedInstances.length,
+        pageSize: allInstances.length,
+        total: allInstances.length,
         maxPage: 1,
-        instances: orderedInstances
+        instances: allInstances
       };
 
     } catch (error) {
