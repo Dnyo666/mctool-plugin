@@ -233,12 +233,12 @@ skin:
   renderType: 1  # 渲染方案选择 (1: 行走视图, 2: 站立视图)
   # 渲染方案一配置（行走视图）
   render1:
-    server: 'https://skin2.qxml.ltd'  # 渲染服务器地址
+    server: 'https://skin2.ixiaojiu.love'  # 渲染服务器地址
     definition: 1.5  # 图片清晰度
     transparent: true  # 是否透明背景
   # 渲染方案二配置（站立视图）
   render2:
-    server: 'http://skin.qxml.ltd'  # 渲染服务器地址
+    server: 'http://skin.ixiaojiu.love'  # 渲染服务器地址
     endpoint: '/render'  # 渲染接口路径
     width: 300   # 渲染宽度
     height: 600  # 渲染高度
@@ -269,7 +269,7 @@ mod:
  1. 目前只测试了Windows环境，其他环境未测试
  2. 部署时需要修改config.yaml中的server和endpoint
  3. 默认端口为3006，可根据项目内文档进行更改，同时请注意插件内配置
-> 公用API：http://skin.qxml.ltd 由九九系只喵提供（3500039980）
+> 公用API：http://skin.ixiaojiu.love 由九九系只喵提供（3500039980）
 
 二、行走视角API项目地址：https://github.com/SerinaNya/SkinRenderMC
 
@@ -278,6 +278,7 @@ mod:
 1. 行走视角API项目可自行部署，且需要修改config.yaml中的server
 2. 部署方法详见项目页，使用docker快速部署
 3. 浅巷墨黎提供公用API：http://skin2.qxml.ltd
+> 公用API: http://skin2.ixiaojiu.love
 
 ## 注意事项
 

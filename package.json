@@ -1,6 +1,6 @@
 {
   "name": "mctool-plugin",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "Minecraft Tool Box plugin for Yunzai-Bot",
   "type": "module",
   "imports": {
