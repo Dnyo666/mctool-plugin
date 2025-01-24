@@ -500,6 +500,103 @@ export default class McsAPI {
   }
 
   /**
+   * 获取实例日志
+   * @param {string} qq QQ号
+   * @param {string} instanceUuid 实例UUID
+   * @param {number} [size] 日志大小(KB)，可选
+   * @returns {Promise<string>} 日志内容
+   */
+  async getInstanceLog(qq, instanceUuid, size) {
+    await this.initUserConfig(qq);
+    try {
+      // 获取用户数据以获取 daemonId
+      const userData = await global.mcsUserData.getUserData(qq);
+      if (!userData?.instances?.list) {
+        throw new Error('未找到实例信息，请先使用 #mcs bind 重新绑定面板');
+      }
+
+      // 查找对应实例的 daemonId
+      const instance = userData.instances.list.find(inst => inst.instanceUuid === instanceUuid);
+      if (!instance?.daemonId) {
+        throw new Error('未找到该实例的守护进程ID');
+      }
+
+      const queryParams = new URLSearchParams({
+        uuid: instanceUuid,
+        daemonId: instance.daemonId
+      });
+
+      // 如果指定了大小，添加到参数中
+      if (size) {
+        queryParams.append('size', size);
+      }
+
+      const url = this.buildUrl(`/api/protected_instance/outputlog?${queryParams}`);
+
+      logger.debug(`[MCS API] 获取实例日志请求: ${url}`);
+      logger.debug(`[MCS API] 使用守护进程ID: ${instance.daemonId}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers
+      });
+
+      const data = await this.handleResponse(response);
+      return data;
+    } catch (error) {
+      logger.error(`[MCS API] 获取实例日志失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 发送实例命令
+   * @param {string} qq QQ号
+   * @param {string} instanceUuid 实例UUID
+   * @param {string} command 命令内容
+   * @returns {Promise<Object>} 操作结果
+   */
+  async sendCommand(qq, instanceUuid, command) {
+    await this.initUserConfig(qq);
+    try {
+      // 获取用户数据以获取 daemonId
+      const userData = await global.mcsUserData.getUserData(qq);
+      if (!userData?.instances?.list) {
+        throw new Error('未找到实例信息，请先使用 #mcs bind 重新绑定面板');
+      }
+
+      // 查找对应实例的 daemonId
+      const instance = userData.instances.list.find(inst => inst.instanceUuid === instanceUuid);
+      if (!instance?.daemonId) {
+        throw new Error('未找到该实例的守护进程ID');
+      }
+
+      const queryParams = new URLSearchParams({
+        uuid: instanceUuid,
+        daemonId: instance.daemonId,
+        command: command
+      });
+
+      const url = this.buildUrl(`/api/protected_instance/command?${queryParams}`);
+
+      logger.debug(`[MCS API] 发送实例命令请求: ${url}`);
+      logger.debug(`[MCS API] 使用守护进程ID: ${instance.daemonId}`);
+      logger.debug(`[MCS API] 命令内容: ${command}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers
+      });
+
+      const data = await this.handleResponse(response);
+      return data;
+    } catch (error) {
+      logger.error(`[MCS API] 发送命令失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 统一处理API响应
    * @private
    * @param {Response} response Fetch响应对象
@@ -536,4 +633,6 @@ export default class McsAPI {
 
     return responseData.data;
   }
+
+  
 }

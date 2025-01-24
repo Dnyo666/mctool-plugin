@@ -34,32 +34,46 @@ export default class McsInstanceApp {
         throw new Error('请先使用 #mcs bind 命令绑定面板')
       }
 
+      // 从用户数据中获取实例列表顺序
+      const userData = global.mcsUserData.getUserData(userId);
+      const configuredInstances = userData.instances.list;
+
+      // 获取实例详细信息
       const result = await this.mcsApi.getInstanceList(userId, {
         page: params.page || 1,
-        page_size: params.page_size || 10
-      })
+        page_size: params.page_size || 20 // 增大页大小以获取所有实例
+      });
 
-      return {
-        success: true,
-        page: result.page,
-        pageSize: result.pageSize,
-        maxPage: result.maxPage,
-        instances: result.data.map(inst => ({
+      // 按配置文件顺序重新排列实例
+      const orderedInstances = configuredInstances.map(configInst => {
+        const inst = result.data.find(apiInst => apiInst.instanceUuid === configInst.instanceUuid);
+        if (!inst) return null;
+        return {
           uuid: inst.instanceUuid,
-          name: inst.config.nickname,
-          type: inst.config.type,
+          name: inst.config.nickname || configInst.name || '未命名',
+          type: inst.config.type || configInst.type || 'universal',
           state: inst.status,
-          started: inst.started,
           stateName: this.getStateName(inst.status),
+          started: inst.started,
           createTime: inst.config.createDatetime,
           lastTime: inst.config.lastDatetime,
           autoStart: inst.config.eventTask?.autoStart || false,
           autoRestart: inst.config.eventTask?.autoRestart || false
-        }))
-      }
+        };
+      }).filter(Boolean);
+
+      return {
+        success: true,
+        page: 1,
+        pageSize: orderedInstances.length,
+        total: orderedInstances.length,
+        maxPage: 1,
+        instances: orderedInstances
+      };
+
     } catch (error) {
-      logger.error(`[MCS Instance] 获取实例列表失败:`, error)
-      throw error
+      logger.error(`[MCS Instance] 获取实例列表失败:`, error);
+      throw error;
     }
   }
 
@@ -71,7 +85,26 @@ export default class McsInstanceApp {
    */
   async getInstanceInfo(userId, instanceUuid) {
     try {
-      const instance = await this.mcsApi.getInstanceInfo(userId, instanceUuid);
+      // 检查用户是否已绑定
+      if (!global.mcsUserData.isUserBound(userId)) {
+        throw new Error('请先使用 #mcs bind 命令绑定面板');
+      }
+
+      // 从用户数据中获取实例信息
+      const userData = global.mcsUserData.getUserData(userId);
+      if (!userData?.instances?.list) {
+        throw new Error('未找到实例信息，请先使用 #mcs bind 重新绑定面板');
+      }
+
+      // 查找对应实例的配置信息
+      const configInst = userData.instances.list.find(inst => inst.instanceUuid === instanceUuid);
+      if (!configInst) {
+        throw new Error('未找到该实例');
+      }
+
+      // 使用配置中的守护进程ID获取实例详情
+      const instance = await this.mcsApi.getInstanceInfo(userId, instanceUuid, configInst.daemonId);
+      
       return {
         success: true,
         instance: {
@@ -80,8 +113,8 @@ export default class McsInstanceApp {
           status: instance.status,    // 实例状态
           stateName: this.getStateName(instance.status),
           config: {
-            name: instance.config?.nickname || '未命名',
-            type: instance.config?.type || 'universal',
+            name: instance.config?.nickname || configInst.name || '未命名',
+            type: instance.config?.type || configInst.type || 'universal',
             startCommand: instance.config?.startCommand || '',
             stopCommand: instance.config?.stopCommand || '',
             updateCommand: instance.config?.updateCommand || '',
@@ -182,14 +215,40 @@ export default class McsInstanceApp {
    */
   async sendCommand(userId, instanceUuid, command) {
     try {
-      await this.mcsApi.sendCommand(userId, instanceUuid, command)
+      // 检查用户是否已绑定
+      if (!global.mcsUserData.isUserBound(userId)) {
+        throw new Error('请先使用 #mcs bind 命令绑定面板');
+      }
+
+      // 获取实例信息以验证实例存在
+      const instanceInfo = await this.getInstanceInfo(userId, instanceUuid);
+      if (!instanceInfo?.instance) {
+        throw new Error('未找到该实例');
+      }
+
+      // 检查实例状态
+      if (instanceInfo.instance.status !== 3) {
+        throw new Error('实例未在运行状态，无法发送命令');
+      }
+
+      // 检查命令内容
+      if (!command || typeof command !== 'string') {
+        throw new Error('命令内容不能为空');
+      }
+
+      // 发送命令
+      const result = await this.mcsApi.sendCommand(userId, instanceUuid, command);
+
       return {
         success: true,
-        message: '命令已发送'
-      }
+        instance: instanceInfo.instance,
+        command: command,
+        result: result
+      };
+
     } catch (error) {
-      logger.error(`[MCS Instance] 发送命令失败:`, error)
-      throw error
+      logger.error(`[MCS Instance] 发送命令失败:`, error);
+      throw error;
     }
   }
 
@@ -197,18 +256,74 @@ export default class McsInstanceApp {
    * 获取实例日志
    * @param {string} userId QQ号
    * @param {string} instanceUuid 实例UUID
+   * @param {number} [size] 日志大小(KB)，可选
    * @returns {Promise<Object>} 日志数据
    */
-  async getInstanceLog(userId, instanceUuid) {
+  async getInstanceLog(userId, instanceUuid, size = 100) {
     try {
-      const log = await this.mcsApi.getInstanceLog(userId, instanceUuid)
+      // 检查用户是否已绑定
+      if (!global.mcsUserData.isUserBound(userId)) {
+        throw new Error('请先使用 #mcs bind 命令绑定面板');
+      }
+
+      // 获取实例信息以验证实例存在
+      const instanceInfo = await this.getInstanceInfo(userId, instanceUuid);
+      if (!instanceInfo?.instance) {
+        throw new Error('未找到该实例');
+      }
+
+      // 限制日志大小在合理范围内
+      const logSize = Math.min(Math.max(size, 1), 2048); // 1KB ~ 2048KB
+
+      // 获取日志
+      const log = await this.mcsApi.getInstanceLog(userId, instanceUuid, logSize);
+
+      // 处理日志内容
+      const logContent = log || '暂无日志';
+
       return {
         success: true,
-        log: log
-      }
+        instance: instanceInfo.instance,
+        log: logContent,
+        size: logSize
+      };
+
     } catch (error) {
-      logger.error(`[MCS Instance] 获取实例日志失败:`, error)
-      throw error
+      logger.error(`[MCS Instance] 获取实例日志失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 通过序号获取实例UUID
+   * @param {string} userId QQ号
+   * @param {number} index 实例序号(1开始)
+   * @returns {Promise<string>} 实例UUID
+   */
+  async getInstanceUuidByIndex(userId, index) {
+    try {
+      // 检查用户是否已绑定
+      if (!global.mcsUserData.isUserBound(userId)) {
+        throw new Error('请先使用 #mcs bind 命令绑定面板');
+      }
+
+      // 从用户数据中获取实例列表
+      const userData = global.mcsUserData.getUserData(userId);
+      if (!userData?.instances?.list) {
+        throw new Error('未找到实例信息，请先使用 #mcs bind 重新绑定面板');
+      }
+
+      // 检查序号是否有效
+      if (index < 1 || index > userData.instances.list.length) {
+        throw new Error(`序号 ${index} 无效，当前共有 ${userData.instances.list.length} 个实例`);
+      }
+
+      // 返回对应序号的实例UUID
+      return userData.instances.list[index - 1].instanceUuid;
+
+    } catch (error) {
+      logger.error(`[MCS Instance] 获取实例UUID失败:`, error);
+      throw error;
     }
   }
 } 

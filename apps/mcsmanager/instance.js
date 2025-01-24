@@ -44,6 +44,14 @@ export class MCSManagerInstance extends plugin {
         {
           reg: '^#?(mcs|MCS)\\s*(强制结束|kill)\\s*([a-zA-Z0-9]+)$',
           fnc: 'killInstance'
+        },
+        {
+          reg: '^#?(mcs|MCS)\\s*(日志|log)\\s*([a-zA-Z0-9]+)\\s*(\\d+)?$',
+          fnc: 'viewLog'
+        },
+        {
+          reg: '^#?(mcs|MCS)\\s*(命令|cmd)\\s*([a-zA-Z0-9]+)\\s*(.+)$',
+          fnc: 'sendCommand'
         }
       ]
     })
@@ -62,15 +70,33 @@ export class MCSManagerInstance extends plugin {
   }
 
   /**
+   * 解析实例ID
+   * @param {string} idOrIndex 实例ID或序号
+   * @returns {Object} 解析结果
+   */
+  async parseInstanceId(e, idOrIndex) {
+    // 如果是纯数字，认为是序号
+    if (/^\d+$/.test(idOrIndex)) {
+      const index = parseInt(idOrIndex);
+      return await this.instanceApp.getInstanceUuidByIndex(e.user_id, index);
+    }
+    // 否则认为是UUID
+    return idOrIndex;
+  }
+
+  /**
    * 解析实例命令
    * @param {string} msg 消息内容
    * @param {string} cmd 命令类型
    * @returns {Object|null} 解析结果
    */
-  parseInstanceCommand(msg, cmd) {
+  async parseInstanceCommand(e, msg, cmd) {
     const match = new RegExp(`^#?(mcs|MCS)\\s*(${cmd})\\s*([a-zA-Z0-9]+)$`).exec(msg)
     if (!match) return null
-    return { uuid: match[3] }
+    
+    // 解析实例ID或序号
+    const uuid = await this.parseInstanceId(e, match[3])
+    return { uuid }
   }
 
   async listInstances(e) {
@@ -87,16 +113,28 @@ export class MCSManagerInstance extends plugin {
       })
 
       const msg = [
-        `实例列表 (第${page}页，共${result.total}个)：`,
+        `实例列表 (第${result.page}页，共${result.total}个)：`,
         ...result.instances.map((inst, index) => 
           `${index + 1}. ${inst.name}(${inst.uuid})\n   类型：${inst.type} | 状态：${inst.stateName}`
-        )
-      ].join('\n')
+        ),
+        result.maxPage > 1 ? `\n提示：当前第${result.page}页，共${result.maxPage}页，使用 #mcs list <页码> 查看其他页` : ''
+      ].filter(Boolean).join('\n')
 
       await e.reply(msg)
       return true
     } catch (error) {
-      await e.reply(`获取实例列表失败：${error.message}`)
+      let message = '获取实例列表失败'
+      
+      // 处理常见错误
+      if (error.message.includes('未绑定')) {
+        message = '请先使用 #mcs bind 命令绑定面板'
+      } else if (error.message.includes('权限')) {
+        message = '没有权限查看实例列表'
+      } else {
+        message = `获取实例列表失败：${error.message}`
+      }
+
+      await e.reply(message)
       return false
     }
   }
@@ -108,7 +146,7 @@ export class MCSManagerInstance extends plugin {
     }
 
     try {
-      const params = this.parseInstanceCommand(e.msg, '实例信息|info')
+      const params = await this.parseInstanceCommand(e, e.msg, '实例信息|info')
       if (!params) {
         await e.reply('格式错误！\n命令格式：#mcs info <实例ID>\n例如：#mcs info abc123def456')
         return false
@@ -159,7 +197,7 @@ export class MCSManagerInstance extends plugin {
     }
 
     try {
-      const params = this.parseInstanceCommand(e.msg, '启动|start')
+      const params = await this.parseInstanceCommand(e, e.msg, '启动|start')
       if (!params) {
         await e.reply('格式错误！\n命令格式：#mcs start <实例ID>\n例如：#mcs start abc123def456')
         return false
@@ -204,7 +242,7 @@ export class MCSManagerInstance extends plugin {
     }
 
     try {
-      const params = this.parseInstanceCommand(e.msg, '停止|stop')
+      const params = await this.parseInstanceCommand(e, e.msg, '停止|stop')
       if (!params) {
         await e.reply('格式错误！\n命令格式：#mcs stop <实例ID>\n例如：#mcs stop abc123def456')
         return false
@@ -244,7 +282,7 @@ export class MCSManagerInstance extends plugin {
     }
 
     try {
-      const params = this.parseInstanceCommand(e.msg, '重启|restart')
+      const params = await this.parseInstanceCommand(e, e.msg, '重启|restart')
       if (!params) {
         await e.reply('格式错误！\n命令格式：#mcs restart <实例ID>\n例如：#mcs restart abc123def456')
         return false
@@ -289,7 +327,7 @@ export class MCSManagerInstance extends plugin {
     }
 
     try {
-      const params = this.parseInstanceCommand(e.msg, '强制结束|kill')
+      const params = await this.parseInstanceCommand(e, e.msg, '强制结束|kill')
       if (!params) {
         await e.reply('格式错误！\n命令格式：#mcs kill <实例ID>\n例如：#mcs kill abc123def456')
         return false
@@ -368,6 +406,141 @@ export class MCSManagerInstance extends plugin {
 
     // 其他消息交给原有规则处理
     return
+  }
+
+  /**
+   * 查看实例日志
+   */
+  async viewLog(e) {
+    if (!e.msg) {
+      await e.reply([
+        'MCS查看日志帮助：',
+        '命令格式：#mcs log <实例ID/序号> [日志大小]',
+        '参数说明：',
+        '  实例ID/序号: 必填，实例的唯一标识或列表中的序号(1-N)',
+        '  日志大小: 可选，获取的日志大小(KB)，范围1~2048，默认100KB',
+        '示例：',
+        '  #mcs log 1 500      - 使用序号',
+        '  #mcs log abc123 200 - 使用实例ID'
+      ].join('\n'))
+      return true
+    }
+
+    try {
+      const match = /^#?(mcs|MCS)\s*(日志|log)\s*([a-zA-Z0-9]+)\s*(\d+)?$/.exec(e.msg)
+      if (!match) {
+        await e.reply('格式错误！请使用 #mcs log 查看帮助信息')
+        return false
+      }
+
+      // 解析实例ID或序号
+      const uuid = await this.parseInstanceId(e, match[3])
+      const size = parseInt(match[4]) || 100
+
+      // 调用实例应用层获取日志
+      const result = await this.instanceApp.getInstanceLog(e.user_id, uuid, size)
+      
+      // 构建日志消息
+      const msg = [
+        `实例 ${result.instance.config.name} 的最新日志：`,
+        `状态：${result.instance.stateName}`,
+        `日志大小：${result.size}KB`,
+        '============= 日志内容 =============',
+        result.log,
+        '===================================',
+        '提示：如需查看更多日志，请增加日志大小参数'
+      ].join('\n')
+
+      await e.reply(msg)
+      return true
+
+    } catch (error) {
+      let message = '获取日志失败'
+      
+      // 处理常见错误
+      if (error.message.includes('未绑定')) {
+        message = '请先使用 #mcs bind 命令绑定面板'
+      } else if (error.message.includes('未找到')) {
+        message = '未找到该实例，请检查实例ID或序号是否正确'
+      } else if (error.message.includes('权限')) {
+        message = '没有权限查看该实例的日志'
+      } else {
+        message = `获取日志失败：${error.message}`
+      }
+
+      await e.reply(message)
+      return false
+    }
+  }
+
+  /**
+   * 发送实例命令
+   */
+  async sendCommand(e) {
+    if (!e.msg) {
+      await e.reply([
+        'MCS发送命令帮助：',
+        '命令格式：#mcs cmd <实例ID/序号> <命令内容>',
+        '参数说明：',
+        '  实例ID/序号: 必填，实例的唯一标识或列表中的序号(1-N)',
+        '  命令内容: 必填，要执行的命令',
+        '示例：',
+        '  #mcs cmd 1 say Hello     - 使用序号',
+        '  #mcs cmd abc123 list     - 使用实例ID'
+      ].join('\n'))
+      return true
+    }
+
+    try {
+      const match = /^#?(mcs|MCS)\s*(命令|cmd)\s*([a-zA-Z0-9]+)\s*(.+)$/.exec(e.msg)
+      if (!match) {
+        await e.reply('格式错误！请使用 #mcs cmd 查看帮助信息')
+        return false
+      }
+
+      // 解析实例ID或序号
+      const uuid = await this.parseInstanceId(e, match[3])
+      const command = match[4].trim()
+
+      // 先获取实例信息
+      const info = await this.instanceApp.getInstanceInfo(e.user_id, uuid)
+      const inst = info.instance
+
+      // 检查实例状态
+      if (inst.status !== 3) {  // 不是运行中
+        await e.reply(`实例 ${inst.config.name} 未在运行，无法发送命令`)
+        return false
+      }
+
+      // 发送命令
+      const result = await this.instanceApp.sendCommand(e.user_id, uuid, command)
+      
+      await e.reply([
+        `命令已发送至实例 ${inst.config.name}：`,
+        command,
+        '提示：请使用 #mcs log 命令查看执行结果'
+      ].join('\n'))
+      return true
+
+    } catch (error) {
+      let message = '发送命令失败'
+      
+      // 处理常见错误
+      if (error.message.includes('未绑定')) {
+        message = '请先使用 #mcs bind 命令绑定面板'
+      } else if (error.message.includes('未找到')) {
+        message = '未找到该实例，请检查实例ID是否正确'
+      } else if (error.message.includes('权限')) {
+        message = '没有权限操作该实例'
+      } else if (error.message.includes('未运行')) {
+        message = '实例未在运行，无法发送命令'
+      } else {
+        message = `发送命令失败：${error.message}`
+      }
+
+      await e.reply(message)
+      return false
+    }
   }
 
   // ... 其他命令处理方法类似，这里省略 ...
