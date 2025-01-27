@@ -1,5 +1,9 @@
 import plugin from '../../../../lib/plugins/plugin.js'
 import McsInstanceApp from '../../models/mcsmanager/app/instance.js'
+import template from 'art-template'
+import path from 'path'
+import puppeteer from 'puppeteer'
+import fs from 'fs'
 
 // #mcs list [页码] - 查看实例列表
 // #mcs info <实例ID> - 查看实例详情
@@ -106,21 +110,78 @@ export class MCSManagerInstance extends plugin {
     }
 
     try {
-      const page = parseInt(e.msg.match(/\d+/)?.[0] || '1')
+      const pageNum = parseInt(e.msg.match(/\d+/)?.[0] || '1')
       const result = await this.instanceApp.getInstanceList(e.user_id, {
-        page,
+        page: pageNum,
         page_size: 10
       })
 
-      const msg = [
-        `实例列表 (第${result.page}页，共${result.total}个)：`,
-        ...result.instances.map((inst, index) => 
-          `${index + 1}. ${inst.name}(${inst.uuid})\n   类型：${inst.type} | 状态：${inst.stateName}`
-        ),
-        result.maxPage > 1 ? `\n提示：当前第${result.page}页，共${result.maxPage}页，使用 #mcs list <页码> 查看其他页` : ''
-      ].filter(Boolean).join('\n')
+      // 渲染HTML
+      const html = template(path.join(process.cwd(), './plugins/mctool-plugin/resources/mcsmanager/html/instancelist.html'), result)
+      
+      // 启动浏览器
+      const browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      
+      // 创建新页面
+      const browserPage = await browser.newPage()
+      
+      // 设置视口
+      await browserPage.setViewport({
+        width: 860,
+        height: 1000
+      })
+      
+      // 加载HTML内容
+      await browserPage.setContent(html)
+      
+      // 等待内容渲染完成
+      await browserPage.waitForSelector('.container')
+      
+      // 获取实际内容高度
+      const bodyHandle = await browserPage.$('body')
+      const { height } = await bodyHandle.boundingBox()
+      await bodyHandle.dispose()
+      
+      // 调整视口高度
+      await browserPage.setViewport({
+        width: 860,
+        height: Math.ceil(height)
+      })
+      
+      // 确保目录存在
+      const imgPath = path.join(process.cwd(), 'plugins/mctool-plugin/resources/mcsmanager/temp')
+      if (!fs.existsSync(imgPath)) {
+        fs.mkdirSync(imgPath, { recursive: true })
+      }
+      
+      // 生成文件名
+      const fileName = `instance_list_${Date.now()}.jpg`
+      const filePath = path.join(imgPath, fileName)
+      
+      // 截图并保存
+      await browserPage.screenshot({
+        path: filePath,
+        fullPage: true,
+        quality: 100,
+        type: 'jpeg'
+      })
+      
+      // 关闭浏览器
+      await browser.close()
+      
+      // 发送图片
+      await e.reply(segment.image(filePath))
 
-      await e.reply(msg)
+      // 延迟删除临时文件
+      setTimeout(() => {
+        fs.unlink(filePath, (err) => {
+          if (err) logger.error(`[MCS Instance] 删除临时文件失败:`, err)
+        })
+      }, 5000)
+
       return true
     } catch (error) {
       let message = '获取实例列表失败'
@@ -153,38 +214,176 @@ export class MCSManagerInstance extends plugin {
       }
 
       const result = await this.instanceApp.getInstanceInfo(e.user_id, params.uuid)
-      const inst = result.instance
-      const msg = [
-        '实例详细信息：',
-        `名称：${inst.config.name}`,
-        `ID：${inst.uuid}`,
-        `类型：${inst.config.type}`,
-        `状态：${inst.stateName}`,
-        `启动次数：${inst.started}次`,
-        '',
-        '进程信息：',
-        `CPU：${inst.process.cpu.toFixed(1)}%`,
-        `内存：${(inst.process.memory / 1024 / 1024).toFixed(2)}MB`,
-        `运行时间：${Math.floor(inst.process.uptime / 3600)}小时${Math.floor((inst.process.uptime % 3600) / 60)}分钟`,
-        `PID：${inst.process.pid}`,
-        '',
-        '配置信息：',
-        `启动命令：${inst.config.startCommand}`,
-        `工作目录：${inst.config.cwd}`,
-        `自动启动：${inst.config.eventTask.autoStart ? '是' : '否'}`,
-        `自动重启：${inst.config.eventTask.autoRestart ? '是' : '否'}`,
-        '',
-        '时间信息：',
-        `创建时间：${new Date(inst.config.createTime).toLocaleString()}`,
-        `最后活动：${new Date(inst.config.lastTime).toLocaleString()}`
-      ].join('\n')
+      
+      // 格式化实例信息
+      const formattedInstance = {
+        ...result.instance,
+        config: {
+          ...result.instance.config,
+          createTime: result.instance.config.createTime ? 
+            new Date(result.instance.config.createTime).toLocaleString() : '未知'
+        }
+      }
+      
+      // 渲染HTML
+      const html = template(path.join(process.cwd(), './plugins/mctool-plugin/resources/mcsmanager/html/instanceinfo.html'), {
+        instance: formattedInstance
+      })
+      
+      // 启动浏览器
+      const browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      
+      // 创建新页面
+      const browserPage = await browser.newPage()
+      
+      // 设置视口
+      await browserPage.setViewport({
+        width: 860,
+        height: 1000
+      })
+      
+      // 加载HTML内容
+      await browserPage.setContent(html)
+      
+      // 等待内容渲染完成
+      await browserPage.waitForSelector('.container')
+      
+      // 获取实际内容高度
+      const bodyHandle = await browserPage.$('body')
+      const { height } = await bodyHandle.boundingBox()
+      await bodyHandle.dispose()
+      
+      // 调整视口高度
+      await browserPage.setViewport({
+        width: 860,
+        height: Math.ceil(height)
+      })
+      
+      // 确保目录存在
+      const imgPath = path.join(process.cwd(), 'plugins/mctool-plugin/resources/mcsmanager/temp')
+      if (!fs.existsSync(imgPath)) {
+        fs.mkdirSync(imgPath, { recursive: true })
+      }
+      
+      // 生成文件名
+      const fileName = `instance_info_${Date.now()}.jpg`
+      const filePath = path.join(imgPath, fileName)
+      
+      // 截图并保存
+      await browserPage.screenshot({
+        path: filePath,
+        fullPage: true,
+        quality: 100,
+        type: 'jpeg'
+      })
+      
+      // 关闭浏览器
+      await browser.close()
+      
+      // 发送图片
+      await e.reply(segment.image(filePath))
 
-      await e.reply(msg)
+      // 延迟删除临时文件
+      setTimeout(() => {
+        fs.unlink(filePath, (err) => {
+          if (err) logger.error(`[MCS Instance] 删除临时文件失败:`, err)
+        })
+      }, 5000)
+
       return true
     } catch (error) {
       await e.reply(`获取实例信息失败：${error.message}`)
       return false
     }
+  }
+
+  /**
+   * 等待并获取实例日志
+   * @private
+   * @param {*} e 消息对象
+   * @param {Object} instance 实例信息
+   * @param {string} uuid 实例UUID
+   * @param {number} waitTime 等待时间(ms)
+   */
+  async waitAndGetLog(e, instance, uuid, waitTime = 3000) {
+    // 等待指定时间
+    await new Promise(resolve => setTimeout(resolve, waitTime))
+
+    // 获取最新日志
+    const logResult = await this.instanceApp.getInstanceLog(e.user_id, uuid, 1000)
+
+    // 渲染HTML
+    const html = template(path.join(process.cwd(), './plugins/mctool-plugin/resources/mcsmanager/html/loginfo.html'), {
+      instance: instance,
+      size: 1000,
+      log: logResult.log
+    })
+    
+    // 启动浏览器
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
+    
+    // 创建新页面
+    const browserPage = await browser.newPage()
+    
+    // 设置视口
+    await browserPage.setViewport({
+      width: 860,
+      height: 1000
+    })
+    
+    // 加载HTML内容
+    await browserPage.setContent(html)
+    
+    // 等待内容渲染完成
+    await browserPage.waitForSelector('.container')
+    
+    // 获取实际内容高度
+    const bodyHandle = await browserPage.$('body')
+    const { height } = await bodyHandle.boundingBox()
+    await bodyHandle.dispose()
+    
+    // 调整视口高度
+    await browserPage.setViewport({
+      width: 860,
+      height: Math.ceil(height)
+    })
+    
+    // 确保目录存在
+    const imgPath = path.join(process.cwd(), 'plugins/mctool-plugin/resources/mcsmanager/temp')
+    if (!fs.existsSync(imgPath)) {
+      fs.mkdirSync(imgPath, { recursive: true })
+    }
+    
+    // 生成文件名
+    const fileName = `instance_log_${Date.now()}.jpg`
+    const filePath = path.join(imgPath, fileName)
+    
+    // 截图并保存
+    await browserPage.screenshot({
+      path: filePath,
+      fullPage: true,
+      quality: 100,
+      type: 'jpeg'
+    })
+    
+    // 关闭浏览器
+    await browser.close()
+    
+    // 发送图片
+    await e.reply(segment.image(filePath))
+
+    // 延迟删除临时文件
+    setTimeout(() => {
+      fs.unlink(filePath, (err) => {
+        if (err) logger.error(`[MCS Instance] 删除临时文件失败:`, err)
+      })
+    }, 5000)
   }
 
   /**
@@ -219,7 +418,10 @@ export class MCSManagerInstance extends plugin {
       }
 
       const result = await this.instanceApp.instanceOperation(e.user_id, params.uuid, 'open')
-      await e.reply(`实例 ${inst.config.name}(${params.uuid}) 启动指令已发送`)
+      await e.reply(`实例 ${inst.config.name} 启动指令已发送，正在等待启动...`)
+      
+      // 等待并获取日志（启动需要更长时间）
+      await this.waitAndGetLog(e, inst, params.uuid, 5000)
       return true
     } catch (error) {
       // 处理特定错误消息
@@ -264,7 +466,10 @@ export class MCSManagerInstance extends plugin {
       }
 
       const result = await this.instanceApp.instanceOperation(e.user_id, params.uuid, 'stop')
-      await e.reply(`实例 ${inst.config.name}(${params.uuid}) 停止指令已发送`)
+      await e.reply(`实例 ${inst.config.name} 停止指令已发送，正在等待停止...`)
+      
+      // 等待并获取日志
+      await this.waitAndGetLog(e, inst, params.uuid)
       return true
     } catch (error) {
       await e.reply(`停止实例失败：${error.message}`)
@@ -304,7 +509,10 @@ export class MCSManagerInstance extends plugin {
       }
 
       const result = await this.instanceApp.instanceOperation(e.user_id, params.uuid, 'restart')
-      await e.reply(`实例 ${inst.config.name}(${params.uuid}) 重启指令已发送`)
+      await e.reply(`实例 ${inst.config.name} 重启指令已发送，正在等待重启...`)
+      
+      // 等待并获取日志（重启需要更长时间）
+      await this.waitAndGetLog(e, inst, params.uuid, 8000)
       return true
     } catch (error) {
       // 处理特定错误消息
@@ -369,6 +577,12 @@ export class MCSManagerInstance extends plugin {
         }
       }, 30000)
 
+      // 发送命令
+      const result = await this.instanceApp.instanceOperation(e.user_id, confirm.uuid, 'kill')
+      await e.reply(`实例 ${confirm.name} 强制结束指令已发送，正在等待结果...`)
+      
+      // 等待并获取日志
+      await this.waitAndGetLog(e, inst, confirm.uuid)
       return true
     } catch (error) {
       await e.reply(`强制结束实例失败：${error.message}`)
@@ -392,7 +606,7 @@ export class MCSManagerInstance extends plugin {
       if (e.msg === '确定') {
         try {
           const result = await this.instanceApp.instanceOperation(e.user_id, confirm.uuid, 'kill')
-          await e.reply(`实例 ${confirm.name}(${confirm.uuid}) 强制结束指令已发送`)
+          await e.reply(`实例 ${confirm.name} 强制结束指令已发送`)
         } catch (error) {
           await e.reply(`强制结束实例失败：${error.message}`)
         }
@@ -418,7 +632,7 @@ export class MCSManagerInstance extends plugin {
         '命令格式：#mcs log <实例ID/序号> [日志大小]',
         '参数说明：',
         '  实例ID/序号: 必填，实例的唯一标识或列表中的序号(1-N)',
-        '  日志大小: 可选，获取的日志大小(KB)，范围1~2048，默认100KB',
+        '  日志大小: 可选，获取的日志大小(KB)，范围1~2048，默认1000KB',
         '示例：',
         '  #mcs log 1 500      - 使用序号',
         '  #mcs log abc123 200 - 使用实例ID'
@@ -435,25 +649,78 @@ export class MCSManagerInstance extends plugin {
 
       // 解析实例ID或序号
       const uuid = await this.parseInstanceId(e, match[3])
-      const size = parseInt(match[4]) || 100
+      const size = parseInt(match[4]) || 1000
 
       // 调用实例应用层获取日志
       const result = await this.instanceApp.getInstanceLog(e.user_id, uuid, size)
       
-      // 构建日志消息
-      const msg = [
-        `实例 ${result.instance.config.name} 的最新日志：`,
-        `状态：${result.instance.stateName}`,
-        `日志大小：${result.size}KB`,
-        '============= 日志内容 =============',
-        result.log,
-        '===================================',
-        '提示：如需查看更多日志，请增加日志大小参数'
-      ].join('\n')
+      // 渲染HTML
+      const html = template(path.join(process.cwd(), './plugins/mctool-plugin/resources/mcsmanager/html/loginfo.html'), result)
+      
+      // 启动浏览器
+      const browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      
+      // 创建新页面
+      const browserPage = await browser.newPage()
+      
+      // 设置视口
+      await browserPage.setViewport({
+        width: 860,
+        height: 1000
+      })
+      
+      // 加载HTML内容
+      await browserPage.setContent(html)
+      
+      // 等待内容渲染完成
+      await browserPage.waitForSelector('.container')
+      
+      // 获取实际内容高度
+      const bodyHandle = await browserPage.$('body')
+      const { height } = await bodyHandle.boundingBox()
+      await bodyHandle.dispose()
+      
+      // 调整视口高度
+      await browserPage.setViewport({
+        width: 860,
+        height: Math.ceil(height)
+      })
+      
+      // 确保目录存在
+      const imgPath = path.join(process.cwd(), 'plugins/mctool-plugin/resources/mcsmanager/temp')
+      if (!fs.existsSync(imgPath)) {
+        fs.mkdirSync(imgPath, { recursive: true })
+      }
+      
+      // 生成文件名
+      const fileName = `instance_log_${Date.now()}.jpg`
+      const filePath = path.join(imgPath, fileName)
+      
+      // 截图并保存
+      await browserPage.screenshot({
+        path: filePath,
+        fullPage: true,
+        quality: 100,
+        type: 'jpeg'
+      })
+      
+      // 关闭浏览器
+      await browser.close()
+      
+      // 发送图片
+      await e.reply(segment.image(filePath))
 
-      await e.reply(msg)
+      // 延迟删除临时文件
+      setTimeout(() => {
+        fs.unlink(filePath, (err) => {
+          if (err) logger.error(`[MCS Instance] 删除临时文件失败:`, err)
+        })
+      }, 5000)
+
       return true
-
     } catch (error) {
       let message = '获取日志失败'
       
@@ -518,8 +785,12 @@ export class MCSManagerInstance extends plugin {
       await e.reply([
         `命令已发送至实例 ${inst.config.name}：`,
         command,
-        '提示：请使用 #mcs log 命令查看执行结果'
+        '正在等待执行结果...'
       ].join('\n'))
+
+      // 等待并获取日志
+      await this.waitAndGetLog(e, inst, uuid)
+
       return true
 
     } catch (error) {
