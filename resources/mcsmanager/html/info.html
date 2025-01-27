@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCSManager 面板概览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #f5f6fa;
+            padding: 20px;
+            color: #2c3e50;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #34495e;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .version-info {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            color: #2980b9;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title i {
+            margin-right: 8px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .info-item {
+            padding: 8px;
+        }
+
+        .info-label {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            color: #2c3e50;
+            font-size: 15px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: white;
+        }
+
+        .status-online {
+            background: #27ae60;
+        }
+
+        .status-offline {
+            background: #e74c3c;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #3498db;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .footer {
+            text-align: center;
+            color: #95a5a6;
+            font-size: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>MCSManager 面板概览</h1>
+            <div class="version-info">
+                面板版本：<%=version%> | 守护进程版本：<%=daemonVersion%>
+            </div>
+        </div>
+
+        <!-- 系统信息 -->
+        <div class="section">
+            <div class="section-title">
+                <i>🖥️</i> 系统信息
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">系统类型</div>
+                    <div class="info-value"><%=system.type%> (<%=system.platform%>)</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">系统版本</div>
+                    <div class="info-value"><%=system.release%></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">主机名称</div>
+                    <div class="info-value"><%=system.hostname%></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Node版本</div>
+                    <div class="info-value"><%=system.node%></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">运行时间</div>
+                    <div class="info-value"><%=system.uptime%></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">CPU使用率</div>
+                    <div class="info-value">
+                        <%=system.cpu%>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: <%=system.cpu%>"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">内存使用</div>
+                    <div class="info-value">
+                        <%=system.memory.used%>/<%=system.memory.total%> (<%=system.memory.usage%>)
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: <%=system.memory.usage%>"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">系统负载</div>
+                    <div class="info-value"><%=system.loadavg%></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实例统计 -->
+        <div class="section">
+            <div class="section-title">
+                <i>📊</i> 实例统计
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">实例数量</div>
+                    <div class="info-value"><%=status.running%>/<%=status.instance%> (运行中/总数)</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">远程节点</div>
+                    <div class="info-value"><%=status.available%>/<%=status.remote%> (可用/总数)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 守护进程信息 -->
+        <% if(daemon && daemon.length > 0){ %>
+        <div class="section">
+            <div class="section-title">
+                <i>🔧</i> 守护进程信息
+            </div>
+            <% for(let i = 0; i < daemon.length; i++){ %>
+            <% let d = daemon[i]; %>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">版本</div>
+                    <div class="info-value"><%=d.version%></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">地址</div>
+                    <div class="info-value"><%=d.address%></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">备注</div>
+                    <div class="info-value"><%=d.remarks%></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">状态</div>
+                    <div class="info-value">
+                        <span class="status-badge <%=d.available?'status-online':'status-offline'%>">
+                            <%=d.available?'在线':'离线'%>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <% if(i < daemon.length - 1){ %>
+            <div style="height: 1px; background: #eee; margin: 10px 0;"></div>
+            <% } %>
+            <% } %>
+        </div>
+        <% } %>
+
+        <!-- 访问统计 -->
+        <% if(record){ %>
+        <div class="section">
+            <div class="section-title">
+                <i>📈</i> 访问统计
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">成功登录</div>
+                    <div class="info-value"><%=record.logined%> 次</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">登录失败</div>
+                    <div class="info-value"><%=record.loginFailed%> 次</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">非法访问</div>
+                    <div class="info-value"><%=record.illegalAccess%> 次</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">封禁IP数</div>
+                    <div class="info-value"><%=record.bannedIPs%> 个</div>
+                </div>
+            </div>
+        </div>
+        <% } %>
+
+        <div class="footer">
+            Generated by Yunzai-Bot MCSManager Plugin
+        </div>
+    </div>
+</body>
+</html>

@@ -11,7 +11,13 @@ export default class McsInfo {
    * @returns {Object} 格式化后的数据
    */
   formatOverview(overview) {
-    const remoteInfo = overview.remote?.[0] || {};
+    // 处理所有守护进程信息
+    const daemons = overview.remote?.map(remote => ({
+      version: remote.version || '未知',
+      address: `${remote.ip}:${remote.port}`,
+      remarks: remote.remarks || '未知',
+      available: remote.available || false
+    })) || [];
     
     // 处理系统内存信息
     const systemMemory = {
@@ -56,8 +62,8 @@ export default class McsInfo {
         cwd: overview.process?.cwd || '未知'
       },
       status: {
-        instance: remoteInfo.instance?.total || 0,
-        running: remoteInfo.instance?.running || 0,
+        instance: overview.remote?.reduce((sum, remote) => sum + (remote.instance?.total || 0), 0) || 0,
+        running: overview.remote?.reduce((sum, remote) => sum + (remote.instance?.running || 0), 0) || 0,
         remote: overview.remoteCount?.total || 0,
         available: overview.remoteCount?.available || 0
       },
@@ -67,12 +73,7 @@ export default class McsInfo {
         illegalAccess: overview.record.illegalAccess || 0,
         bannedIPs: overview.record.banips || 0
       } : null,
-      daemon: remoteInfo ? {
-        version: remoteInfo.version || '未知',
-        address: `${remoteInfo.ip}:${remoteInfo.port}`,
-        remarks: remoteInfo.remarks || '未知',
-        available: remoteInfo.available || false
-      } : null
+      daemon: daemons.length > 0 ? daemons : null
     };
   }
 
