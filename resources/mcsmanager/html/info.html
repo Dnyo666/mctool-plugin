@@ -13,116 +13,233 @@
 
         body {
             font-family: 'Microsoft YaHei', sans-serif;
-            background: #f5f6fa;
-            padding: 20px;
+            background: #f0f2f5;
+            padding: 12px;
             color: #2c3e50;
+            line-height: 1.4;
         }
 
         .container {
             max-width: 800px;
             margin: 0 auto;
             background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            padding: 16px;
         }
 
         .header {
             text-align: center;
-            padding-bottom: 20px;
+            padding-bottom: 12px;
             border-bottom: 1px solid #eee;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .header h1 {
-            color: #34495e;
-            font-size: 24px;
-            margin-bottom: 10px;
+            color: #1a1a1a;
+            font-size: 20px;
+            margin-bottom: 8px;
+            font-weight: 600;
         }
 
         .version-info {
-            color: #7f8c8d;
-            font-size: 14px;
+            color: #666;
+            font-size: 13px;
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
         }
 
         .section {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f8f9fa;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: #fff;
             border-radius: 8px;
+            border: 1px solid #eaeaea;
         }
 
         .section-title {
-            font-size: 18px;
-            color: #2980b9;
-            margin-bottom: 15px;
+            font-size: 15px;
+            color: #1a1a1a;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
+            font-weight: 600;
         }
 
         .section-title i {
-            margin-right: 8px;
+            margin-right: 6px;
+            font-size: 16px;
         }
 
         .info-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            gap: 8px;
         }
 
         .info-item {
             padding: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
         }
 
         .info-label {
-            color: #7f8c8d;
-            font-size: 14px;
+            color: #666;
+            font-size: 13px;
             margin-bottom: 4px;
+            font-weight: 500;
         }
 
         .info-value {
-            color: #2c3e50;
-            font-size: 15px;
+            color: #1a1a1a;
+            font-size: 13px;
+            font-weight: 500;
         }
 
         .status-badge {
             display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 2px 8px;
+            border-radius: 12px;
             font-size: 12px;
             color: white;
+            font-weight: 500;
         }
 
         .status-online {
-            background: #27ae60;
+            background: #10b981;
         }
 
         .status-offline {
-            background: #e74c3c;
+            background: #ef4444;
         }
 
         .progress-bar {
-            height: 8px;
-            background: #ecf0f1;
-            border-radius: 4px;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
             overflow: hidden;
             margin-top: 4px;
         }
 
         .progress-fill {
             height: 100%;
-            background: #3498db;
-            border-radius: 4px;
+            background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+            border-radius: 3px;
             transition: width 0.3s ease;
+        }
+
+        .resource-usage {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .resource-item {
+            flex: 1;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .chart-container {
+            height: 120px;
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            padding: 8px 0;
+            margin: 8px 0;
+        }
+
+        .chart-bar {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            gap: 1px;
+        }
+
+        .chart-bar-cpu {
+            background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
+            transition: height 0.3s ease;
+            border-radius: 2px 2px 0 0;
+        }
+
+        .chart-bar-mem {
+            background: linear-gradient(180deg, #ef4444 0%, #f87171 100%);
+            transition: height 0.3s ease;
+            border-radius: 2px 2px 0 0;
+        }
+
+        .chart-bar-running {
+            background: linear-gradient(180deg, #10b981 0%, #34d399 100%);
+            transition: height 0.3s ease;
+            border-radius: 2px 2px 0 0;
+        }
+
+        .chart-legend {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: #f8f9fa;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .legend-color.cpu {
+            background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
+        }
+
+        .legend-color.mem {
+            background: linear-gradient(180deg, #ef4444 0%, #f87171 100%);
         }
 
         .footer {
             text-align: center;
-            color: #95a5a6;
+            color: #666;
             font-size: 12px;
-            margin-top: 20px;
-            padding-top: 20px;
+            margin-top: 12px;
+            padding-top: 12px;
             border-top: 1px solid #eee;
+        }
+
+        @media (max-width: 640px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 12px;
+            }
+            
+            .section {
+                padding: 12px;
+            }
+
+            .resource-usage {
+                flex-direction: column;
+            }
+            
+            .resource-item {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -142,14 +259,6 @@
             </div>
             <div class="info-grid">
                 <div class="info-item">
-                    <div class="info-label">系统类型</div>
-                    <div class="info-value"><%=system.type%> (<%=system.platform%>)</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">系统版本</div>
-                    <div class="info-value"><%=system.release%></div>
-                </div>
-                <div class="info-item">
                     <div class="info-label">主机名称</div>
                     <div class="info-value"><%=system.hostname%></div>
                 </div>
@@ -161,21 +270,31 @@
                     <div class="info-label">运行时间</div>
                     <div class="info-value"><%=system.uptime%></div>
                 </div>
+                <% if(system.user) { %>
                 <div class="info-item">
-                    <div class="info-label">CPU使用率</div>
-                    <div class="info-value">
-                        <%=system.cpu%>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: <%=system.cpu%>"></div>
-                        </div>
-                    </div>
+                    <div class="info-label">用户目录</div>
+                    <div class="info-value"><%=system.user.homedir%></div>
                 </div>
-                <div class="info-item">
-                    <div class="info-label">内存使用</div>
-                    <div class="info-value">
-                        <%=system.memory.used%>/<%=system.memory.total%> (<%=system.memory.usage%>)
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: <%=system.memory.usage%>"></div>
+                <% } %>
+                <div class="info-item" style="grid-column: span 2;">
+                    <div class="resource-usage">
+                        <div class="resource-item">
+                            <div class="info-label">CPU使用率</div>
+                            <div class="info-value">
+                                <%=system.cpu%>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: <%=system.cpu%>"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="resource-item">
+                            <div class="info-label">内存使用</div>
+                            <div class="info-value">
+                                <%=system.memory.used%>/<%=system.memory.total%> (<%=system.memory.usage%>)
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: <%=system.memory.usage%>"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -183,6 +302,12 @@
                     <div class="info-label">系统负载</div>
                     <div class="info-value"><%=system.loadavg%></div>
                 </div>
+                <% if(system.user) { %>
+                <div class="info-item">
+                    <div class="info-label">系统用户</div>
+                    <div class="info-value"><%=system.user.username%> (UID:<%=system.user.uid%>)</div>
+                </div>
+                <% } %>
             </div>
         </div>
 
@@ -197,8 +322,16 @@
                     <div class="info-value"><%=status.running%>/<%=status.instance%> (运行中/总数)</div>
                 </div>
                 <div class="info-item">
+                    <div class="info-label">系统类型</div>
+                    <div class="info-value"><%=system.type%> (<%=system.platform%>)</div>
+                </div>
+                <div class="info-item">
                     <div class="info-label">远程节点</div>
                     <div class="info-value"><%=status.available%>/<%=status.remote%> (可用/总数)</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">系统版本</div>
+                    <div class="info-value"><%=system.release%></div>
                 </div>
             </div>
         </div>
@@ -218,7 +351,8 @@
                 </div>
                 <div class="info-item">
                     <div class="info-label">地址</div>
-                    <div class="info-value"><%=d.address%></div>
+                    <div class="info-value">****<%=d.address.replace(/ws:\/\/[^:]+(:(\d+))?.*/, (_, portPart, port) => 
+                        port ? `:${port}` : ':****')%></div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">备注</div>
@@ -230,6 +364,36 @@
                         <span class="status-badge <%=d.available?'status-online':'status-offline'%>">
                             <%=d.available?'在线':'离线'%>
                         </span>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">实例统计</div>
+                    <div class="info-value"><%=d.instance?.running || 0%>/<%=d.instance?.total || 0%> (运行中/总数)</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">系统类型</div>
+                    <div class="info-value"><%=d.system?.type%> (<%=d.system?.platform%>)</div>
+                </div>
+                <div class="info-item" style="grid-column: span 2;">
+                    <div class="resource-usage">
+                        <div class="resource-item">
+                            <div class="info-label">CPU使用</div>
+                            <div class="info-value">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: <%=((d.system?.cpuUsage || 0) * 100).toFixed(1)%>%"></div>
+                                </div>
+                                <%= ((d.system?.cpuUsage || 0) * 100).toFixed(1) %>%
+                            </div>
+                        </div>
+                        <div class="resource-item">
+                            <div class="info-label">内存使用</div>
+                            <div class="info-value">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: <%=((d.system?.memUsage || 0) * 100).toFixed(1)%>%"></div>
+                                </div>
+                                <%= ((d.system?.memUsage || 0) * 100).toFixed(1) %>%
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -262,6 +426,50 @@
                 <div class="info-item">
                     <div class="info-label">封禁IP数</div>
                     <div class="info-value"><%=record.bannedIPs%> 个</div>
+                </div>
+            </div>
+        </div>
+        <% } %>
+
+        <!-- 系统监控图表 -->
+        <% if(chart) { %>
+        <div class="section">
+            <div class="section-title">
+                <i>📊</i> 系统监控
+            </div>
+            <div class="info-grid">
+                <div class="info-item" style="grid-column: span 2;">
+                    <div class="info-label">系统资源使用趋势</div>
+                    <div class="info-value">
+                        <div class="chart-container">
+                            <% chart.system.forEach(point => { %>
+                            <div class="chart-bar">
+                                <div class="chart-bar-cpu" style="height: <%=point.cpu%>%"></div>
+                                <div class="chart-bar-mem" style="height: <%=point.mem%>%"></div>
+                            </div>
+                            <% }); %>
+                        </div>
+                        <div class="chart-legend">
+                            <span class="legend-item"><span class="legend-color cpu"></span>CPU</span>
+                            <span class="legend-item"><span class="legend-color mem"></span>内存</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="info-item" style="grid-column: span 2;">
+                    <div class="info-label">实例运行状态</div>
+                    <div class="info-value">
+                        <div class="chart-container">
+                            <% chart.request.forEach(point => { %>
+                            <div class="chart-bar">
+                                <div class="chart-bar-running" style="height: <%=(((point.runningInstance || 0)/(point.totalInstance || 1))*100).toFixed(1)%>%"></div>
+                            </div>
+                            <% }); %>
+                        </div>
+                        <div class="chart-legend">
+                            <span class="legend-item">运行实例: <%= chart.request[chart.request.length-1]?.runningInstance || 0 %></span>
+                            <span class="legend-item">总实例: <%= chart.request[chart.request.length-1]?.totalInstance || 0 %></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

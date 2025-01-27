@@ -32,9 +32,20 @@ export default class McsInfo {
     // 处理所有守护进程信息
     const daemons = overview.remote?.map(remote => ({
       version: remote.version || '未知',
-      address: `${remote.ip}:${remote.port}`,
+      address: remote.port ? `****:${remote.port}` : '****:****',
       remarks: remote.remarks || '未知',
-      available: remote.available || false
+      available: remote.available || false,
+      instance: remote.instance || { running: 0, total: 0 },
+      system: {
+        type: remote.system?.type || '未知',
+        platform: remote.system?.platform || '未知',
+        hostname: remote.system?.hostname || '未知',
+        release: remote.system?.release || '未知',
+        uptime: this.formatUptime(remote.system?.uptime || 0),
+        cpuUsage: remote.system?.cpuUsage || 0,
+        memUsage: remote.system?.memUsage || 0,
+        loadavg: remote.system?.loadavg || [0, 0, 0]
+      }
     })) || [];
     
     // 处理系统内存信息
@@ -51,6 +62,12 @@ export default class McsInfo {
       free: 0
     };
 
+    // 处理图表数据
+    const chartData = overview.chart ? {
+      system: overview.chart.system || [],
+      request: overview.chart.request || []
+    } : null;
+
     return {
       version: overview.version || '未知',
       daemonVersion: overview.specifiedDaemonVersion || '未知',
@@ -64,14 +81,15 @@ export default class McsInfo {
         uptime: this.formatUptime(overview.system?.uptime || 0),
         memory: this.formatMemory(systemMemory),
         cpu: `${(overview.system?.cpu * 100 || 0).toFixed(1)}%`,
-        loadavg: overview.system?.loadavg || [0, 0, 0],
+        loadavg: this.formatLoadavg(overview.system?.loadavg || [0, 0, 0]),
         user: overview.system?.user ? {
           username: overview.system.user.username || '未知',
           uid: overview.system.user.uid || 0,
           gid: overview.system.user.gid || 0,
           homedir: overview.system.user.homedir || '未知',
           shell: overview.system.user.shell || '未知'
-        } : null
+        } : null,
+        time: overview.system?.time || Date.now()
       },
       process: {
         uptime: this.formatUptime(overview.process?.uptime || 0),
@@ -91,7 +109,9 @@ export default class McsInfo {
         illegalAccess: overview.record.illegalAccess || 0,
         bannedIPs: overview.record.banips || 0
       } : null,
-      daemon: daemons.length > 0 ? daemons : null
+      chart: chartData,
+      daemon: daemons.length > 0 ? daemons : null,
+      time: overview.time || Date.now()
     };
   }
 
