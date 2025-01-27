@@ -1,8 +1,26 @@
 import McsAPI from '../../../components/mcsmanager/mcs-api.js';
+import McsInstanceApp from './instance.js';
 
 export default class McsInfo {
   constructor() {
     this.api = new McsAPI();
+    this.instanceApp = new McsInstanceApp();
+  }
+
+  /**
+   * 获取实例详细信息
+   * @param {string} qq QQ号
+   * @param {string} instanceUuid 实例UUID
+   * @returns {Object} 实例详细信息
+   */
+  getInstanceDetail(qq, instanceUuid) {
+    try {
+      const userData = global.mcsUserData.getUserData(qq);
+      return userData.instances.list.find(inst => inst.instanceUuid === instanceUuid);
+    } catch (error) {
+      logger.warn(`[MCS Info] 获取实例 ${instanceUuid} 详细信息失败:`, error);
+      return null;
+    }
   }
 
   /**
@@ -80,36 +98,39 @@ export default class McsInfo {
   /**
    * 格式化用户列表数据
    * @param {Object} data 原始用户列表数据
+   * @param {string} qq QQ号
    * @returns {Object} 格式化后的数据
    */
-  formatUserList(data) {
+  formatUserList(data, qq) {
     return {
       total: data.total || 0,
       page: data.page || 1,
       pageSize: data.pageSize || 20,
       totalPage: data.maxPage || 1,
-      users: (data.data || []).map(user => ({
-        id: user.uuid || '',
-        username: user.userName || '未知用户',
-        role: this.formatRole(user.permission),
-        instances: user.instances || [],
-        apiKey: user.apiKey || '',
-        is2FAEnabled: user.open2FA || false,
-        createTime: user.registerTime ? new Date(user.registerTime).toLocaleString('zh-CN', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        }) : '未知',
-        lastLoginTime: user.loginTime ? new Date(user.loginTime).toLocaleString('zh-CN', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        }) : '从未登录'
-      }))
+      users: (data.data || []).map(user => {
+        return {
+          id: user.uuid || '',
+          username: user.userName || '未知用户',
+          role: this.formatRole(user.permission),
+          instances: user.instances || [],
+          apiKey: user.apiKey || '',
+          is2FAEnabled: user.open2FA || false,
+          createTime: user.registerTime ? new Date(user.registerTime).toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '未知',
+          lastLoginTime: user.loginTime ? new Date(user.loginTime).toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '从未登录'
+        };
+      })
     };
   }
 
@@ -140,13 +161,53 @@ export default class McsInfo {
    */
   async getUserList(qq, options = {}) {
     try {
+      // 先更新实例列表
+      await this.instanceApp.getInstanceList(qq);
+      
       const data = await this.api.getUserList(qq, {
         page: options.page || 1,
         page_size: options.pageSize || 20,
         userName: options.userName || '',
         role: options.role || ''
       });
-      return this.formatUserList(data);
+
+      // 获取每个用户的实例详细信息
+      for (const user of data.data || []) {
+        if (user.instances && user.instances.length > 0) {
+          // 如果是当前用户，使用本地存储的实例信息
+          if (user.uuid === global.mcsUserData.getUserData(qq).uuid) {
+            const userData = global.mcsUserData.getUserData(qq);
+            user.instances = userData.instances.list;
+          } else {
+            // 对于其他用户，获取每个实例的详细信息
+            const instanceDetails = [];
+            for (const inst of user.instances) {
+              try {
+                // 使用API直接获取实例信息
+                const detail = await this.api.getInstanceInfo(qq, inst.instanceUuid, inst.daemonId);
+                instanceDetails.push({
+                  instanceUuid: inst.instanceUuid,
+                  daemonId: inst.daemonId,
+                  name: detail.config?.nickname || inst.name || '未命名',
+                  type: detail.config?.type || inst.type || 'universal'
+                });
+              } catch (error) {
+                logger.warn(`[MCS Info] 获取实例 ${inst.instanceUuid} 详细信息失败:`, error);
+                // 如果获取失败，使用基本信息
+                instanceDetails.push({
+                  instanceUuid: inst.instanceUuid,
+                  daemonId: inst.daemonId,
+                  name: inst.name || '未命名',
+                  type: inst.type || 'universal'
+                });
+              }
+            }
+            user.instances = instanceDetails;
+          }
+        }
+      }
+
+      return this.formatUserList(data, qq);
     } catch (error) {
       logger.error(`[MCS Info] 获取用户列表失败:`, error);
       throw error;

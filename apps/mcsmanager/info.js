@@ -129,10 +129,10 @@ export class MCSManagerInfo extends plugin {
       }
 
       // 获取页码参数
-      const page = parseInt(e.msg.match(/\d+/)?.[0] || '1');
+      const pageNum = parseInt(e.msg.match(/\d+/)?.[0] || '1');
       
       const data = await this.info.getUserList(e.user_id, {
-        page,
+        page: pageNum,
         pageSize: 10
       });
 
@@ -141,27 +141,72 @@ export class MCSManagerInfo extends plugin {
         return true;
       }
 
-      // 构建消息
-      const msg = [
-        '============= MCS Manager 用户列表 =============',
-        `第 ${data.page}/${data.totalPage} 页，共 ${data.total} 个用户`,
-        '',
-        ...data.users.map(user => [
-          `[ ${user.username} ]`,
-          `用户ID：${user.id}`,
-          `权限等级：${user.role}`,
-          `创建时间：${user.createTime}`,
-          `最后登录：${user.lastLoginTime}`,
-          `双因素认证：${user.is2FAEnabled ? '已开启' : '未开启'}`,
-          `API密钥：${user.apiKey ? '已设置' : '未设置'}`,
-          user.instances.length > 0 ? `实例数量：${user.instances.length}` : '无实例',
-          ''
-        ].join('\n')),
-        `提示：使用 #mcs users <页码> 查看其他页`,
-        '============================================='
-      ].join('\n');
+      // 渲染HTML
+      const html = template(path.join(process.cwd(), './plugins/mctool-plugin/resources/mcsmanager/html/userinfo.html'), data)
+      
+      // 启动浏览器
+      const browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      
+      // 创建新页面
+      const page = await browser.newPage()
+      
+      // 设置视口
+      await page.setViewport({
+        width: 860,
+        height: 1000
+      })
+      
+      // 加载HTML内容
+      await page.setContent(html)
+      
+      // 等待内容渲染完成
+      await page.waitForSelector('.container')
+      
+      // 获取实际内容高度
+      const bodyHandle = await page.$('body')
+      const { height } = await bodyHandle.boundingBox()
+      await bodyHandle.dispose()
+      
+      // 调整视口高度
+      await page.setViewport({
+        width: 860,
+        height: Math.ceil(height)
+      })
+      
+      // 确保目录存在
+      const imgPath = path.join(process.cwd(), 'plugins/mctool-plugin/resources/mcsmanager/temp')
+      if (!fs.existsSync(imgPath)) {
+        fs.mkdirSync(imgPath, { recursive: true })
+      }
+      
+      // 生成文件名
+      const fileName = `userlist_${Date.now()}.jpg`
+      const filePath = path.join(imgPath, fileName)
+      
+      // 截图并保存
+      await page.screenshot({
+        path: filePath,
+        fullPage: true,
+        quality: 100,
+        type: 'jpeg'
+      })
+      
+      // 关闭浏览器
+      await browser.close()
+      
+      // 发送图片
+      await e.reply(segment.image(filePath))
 
-      await e.reply(msg);
+      // 延迟删除临时文件
+      setTimeout(() => {
+        fs.unlink(filePath, (err) => {
+          if (err) logger.error(`[MCS Info] 删除临时文件失败:`, err)
+        })
+      }, 5000)
+
       return true;
     } catch (error) {
       logger.error(`[MCS Info] 获取用户列表失败:`, error);
