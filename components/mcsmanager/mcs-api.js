@@ -452,7 +452,7 @@ export default class McsAPI {
       const data = await this.handleResponse(response);
       return data;
     } catch (error) {
-      logger.error(`[MCS API] 获取实例详情失败:`, error);
+      logger.warn(`[MCS API] 获取实例详情失败:`, error);
       throw error;
     }
   }

@@ -11,13 +11,24 @@ export default class McsBindApp {
    * @returns {Object|null} 解析结果
    */
   parseBindCommand(command) {
-    const params = command.replace(/^#?(mcs|MCS)\s*(绑定|bind)\s*/, '').trim().split(/\s+/)
+    let input = command.replace(/^#?(mcs|MCS)\s*(绑定|bind)\s*/, '').trim()
+    logger.info(`[MCS Bind] 解析绑定命令: ${input}`)
     
-    if (params.length !== 2) {
-      return null
+    let url, apiKey
+    
+    // 尝试匹配一体化格式: URL/apiKey
+    const combinedMatch = input.match(/^(https?:\/\/[^\/]+)\/([a-zA-Z0-9]+)$/)
+    if (combinedMatch) {
+      [, url, apiKey] = combinedMatch
+    } else {
+      // 尝试匹配分开格式: URL apiKey
+      const params = input.split(/\s+/)
+      if (params.length === 2) {
+        [url, apiKey] = params
+      } else {
+        return null
+      }
     }
-
-    const [url, apiKey] = params
     
     try {
       new URL(url)

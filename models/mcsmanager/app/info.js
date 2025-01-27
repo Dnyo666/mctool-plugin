@@ -18,7 +18,7 @@ export default class McsInfo {
       const userData = global.mcsUserData.getUserData(qq);
       return userData.instances.list.find(inst => inst.instanceUuid === instanceUuid);
     } catch (error) {
-      logger.warn(`[MCS Info] 获取实例 ${instanceUuid} 详细信息失败:`, error);
+      //logger.warn(`[MCS Info] 获取实例 ${instanceUuid} 详细信息失败:`, error);
       return null;
     }
   }
@@ -188,8 +188,8 @@ export default class McsInfo {
                 instanceDetails.push({
                   instanceUuid: inst.instanceUuid,
                   daemonId: inst.daemonId,
-                  name: detail.config?.nickname || inst.name || '未命名',
-                  type: detail.config?.type || inst.type || 'universal'
+                  name: detail.config?.nickname || inst.name || '未拥有',
+                  type: detail.config?.type || inst.type || '未知'
                 });
               } catch (error) {
                 logger.warn(`[MCS Info] 获取实例 ${inst.instanceUuid} 详细信息失败:`, error);
@@ -197,8 +197,8 @@ export default class McsInfo {
                 instanceDetails.push({
                   instanceUuid: inst.instanceUuid,
                   daemonId: inst.daemonId,
-                  name: inst.name || '未命名',
-                  type: inst.type || 'universal'
+                  name: inst.name || '未拥有',
+                  type: inst.type || '未知'
                 });
               }
             }
