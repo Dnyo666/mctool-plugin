@@ -55,8 +55,8 @@ export default class McsInstanceApp {
           // 添加该守护进程下的所有实例
           allInstances.push(...result.data.map(inst => ({
             uuid: inst.instanceUuid,
-            name: inst.config.nickname || '未命名',
-            type: inst.config.type || 'universal',
+            name: inst.config.nickname || '未拥有',
+            type: inst.config.type || '未知',
             state: inst.status,
             stateName: this.getStateName(inst.status),
             started: inst.started,
@@ -135,8 +135,8 @@ export default class McsInstanceApp {
           status: instance.status,    // 实例状态
           stateName: this.getStateName(instance.status),
           config: {
-            name: instance.config?.nickname || configInst.name || '未命名',
-            type: instance.config?.type || configInst.type || 'universal',
+            name: instance.config?.nickname || configInst.name || '未拥有',
+            type: instance.config?.type || configInst.type || '未知',
             startCommand: instance.config?.startCommand || '',
             stopCommand: instance.config?.stopCommand || '',
             updateCommand: instance.config?.updateCommand || '',
