@@ -73,7 +73,7 @@ export class Help extends plugin {
 
             // 发送图片
             try {
-                await e.reply(segment.image(`file:///${screenshotPath}`));
+                await e.reply(segment.image(`${screenshotPath}`));
             } finally {
                 // 删除临时文件
                 if (fs.existsSync(screenshotPath)) {
@@ -131,7 +131,7 @@ export class Help extends plugin {
 
             // 发送图片
             try {
-                await e.reply(segment.image(`file:///${screenshotPath}`));
+                await e.reply(segment.image(`${screenshotPath}`));
             } finally {
                 // 删除临时文件
                 if (fs.existsSync(screenshotPath)) {

@@ -1018,7 +1018,7 @@ export class MCUser extends plugin {
 
             // 发送图片
             try {
-                await e.reply(segment.image(`file:///${screenshotPath}`));
+                await e.reply(segment.image(`${screenshotPath}`));
                 return true;
             } finally {
                 // 删除临时文件
@@ -1584,25 +1584,13 @@ export class MCUser extends plugin {
                         throw new Error(result.message || '生成失败');
                     }
 
-                    // 将Base64转换为图片
+                    // 直接发送Base64数据
                     const base64Data = result.data.image;
-                    const imageData = Buffer.from(base64Data, 'base64');
-                    const tempDir = path.join(process.cwd(), 'plugins', 'mctool-plugin', 'temp');
-                    if (!fs.existsSync(tempDir)) {
-                        fs.mkdirSync(tempDir, { recursive: true });
-                    }
-
-                    const tempFile = path.join(tempDir, `${user.username}_${type}_${Date.now()}.png`);
-                    fs.writeFileSync(tempFile, imageData);
-
-                    // 直接发送消息
                     await e.reply([
                         `${user.username} (${user.platform === 'littleskin' ? 'LittleSkin' : 'Mojang'}) 的${type}图像：\n`,
-                        segment.image(`file:///${tempFile}`)
+                        segment.image(`base64://${base64Data}`)
                     ]);
 
-                    // 删除临时文件
-                    fs.unlinkSync(tempFile);
                 } catch (error) {
                     logger.error(`[MCTool] 生成 ${user.username} 的头像失败:`, error);
                     await e.reply(`生成 ${user.username} (${user.platform === 'littleskin' ? 'LittleSkin' : 'Mojang'}) 的头像失败: ${error.message}`);
