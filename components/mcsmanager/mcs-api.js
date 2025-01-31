@@ -600,6 +600,132 @@ export default class McsAPI {
   }
 
   /**
+   * 添加远程守护进程节点
+   * @param {string} qq QQ号
+   * @param {Object} params 节点参数
+   * @param {string} params.ip 节点IP地址
+   * @param {number} params.port 节点端口
+   * @param {string} params.apiKey 节点API密钥
+   * @param {string} [params.remarks] 节点备注
+   * @param {string} [params.prefix] 节点前缀
+   * @returns {Promise<string>} 节点ID
+   */
+  async addDaemonNode(qq, params) {
+    await this.initUserConfig(qq);
+    try {
+      // 验证必要参数
+      if (!params.ip || !params.port || !params.apiKey) {
+        throw new Error('缺少必要参数');
+      }
+
+      const url = this.buildUrl('/api/service/remote_service');
+
+      logger.debug(`[MCS API] 添加守护进程节点请求: ${url}`);
+      logger.debug(`[MCS API] 节点信息: ${params.ip}:${params.port}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ip: params.ip,
+          port: params.port,
+          apiKey: params.apiKey,
+          remarks: params.remarks || '',
+          prefix: params.prefix || ''
+        })
+      });
+
+      const data = await this.handleResponse(response);
+      return data; // 返回节点ID
+    } catch (error) {
+      logger.error(`[MCS API] 添加守护进程节点失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取守护进程节点列表
+   * @param {string} qq QQ号
+   * @returns {Promise<Object>} 节点列表
+   */
+  async getDaemonList(qq) {
+    await this.initUserConfig(qq);
+    try {
+      const url = this.buildUrl('/api/service/remote_services');
+      
+      logger.info(`[MCS API] 获取守护进程节点列表请求: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers
+      });
+
+      const data = await this.handleResponse(response);
+      return data;
+    } catch (error) {
+      logger.error(`[MCS API] 获取守护进程节点列表失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除守护进程节点
+   * @param {string} qq QQ号
+   * @param {string} uuid 节点ID
+   * @returns {Promise<boolean>} 删除结果
+   */
+  async deleteDaemonNode(qq, uuid) {
+    await this.initUserConfig(qq);
+    try {
+      const queryParams = new URLSearchParams({ uuid });
+      const url = this.buildUrl(`/api/service/remote_service?${queryParams}`);
+      
+      logger.info(`[MCS API] 删除守护进程节点请求: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: this.headers
+      });
+
+      const data = await this.handleResponse(response);
+      return data;
+    } catch (error) {
+      logger.error(`[MCS API] 删除守护进程节点失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 连接守护进程节点
+   * @param {string} qq QQ号
+   * @param {string} uuid 节点ID
+   * @returns {Promise<boolean>} 连接结果
+   */
+  async linkDaemonNode(qq, uuid) {
+    await this.initUserConfig(qq);
+    try {
+      const queryParams = new URLSearchParams({ uuid });
+      const url = this.buildUrl(`/api/service/link_remote_service?${queryParams}`);
+      
+      logger.info(`[MCS API] 连接守护进程节点请求: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers
+      });
+
+      const data = await this.handleResponse(response);
+      return data;
+    } catch (error) {
+      logger.error(`[MCS API] 连接守护进程节点失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 统一处理API响应
    * @private
    * @param {Response} response Fetch响应对象
