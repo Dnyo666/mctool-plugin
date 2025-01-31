@@ -204,7 +204,7 @@ export class MCSManagerDaemon extends plugin {
       if (error.message.includes('未绑定')) {
         message = '请先使用 #mcs bind 命令绑定面板';
       } else {
-        message = `获取节点列表失败：${error.message}`;
+        message = `获取节点列表失败请联系管理员！`;
       }
 
       await e.reply(message);
