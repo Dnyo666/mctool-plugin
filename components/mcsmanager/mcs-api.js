@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import UserData from '../../models/mcsmanager/user/userdata.js';
+import fs from 'fs';
 
 export default class McsAPI {
   constructor() {
@@ -722,6 +723,135 @@ export default class McsAPI {
     } catch (error) {
       logger.error(`[MCS API] 连接守护进程节点失败:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * 获取文件列表
+   * @param {string} daemonId 守护进程ID
+   * @param {string} instanceUuid 实例UUID
+   * @param {string} target 目标路径
+   * @param {number} page 页码
+   * @param {number} pageSize 每页数量
+   * @returns {Promise<Object>} 文件列表数据
+   */
+  async getFileList(daemonId, instanceUuid, target = '/', page, pageSize) {
+    try {
+      // 构建查询参数
+      const queryParams = new URLSearchParams({
+        daemonId,
+        uuid: instanceUuid,
+        target,
+        file_name: '',  // 添加必要的空参数
+        page: page || 0,
+        page_size: pageSize || 100
+      });
+
+      const url = this.buildUrl(`/api/files/list?${queryParams}`);
+      
+      //logger.info(`[MCS API] 获取文件列表请求: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers
+      });
+
+      const data = await this.handleResponse(response);
+      //logger.info(`[MCS API] 获取文件列表数据: ${JSON.stringify(data)}`);
+
+      // 格式化返回数据
+      return {
+        files: data.items.map(item => ({
+          name: item.name,
+          size: item.size,
+          time: new Date(item.time),
+          permissions: item.mode,
+          isDirectory: item.type === 0,
+          isFile: item.type === 1
+        })),
+        total: data.total,
+        currentPath: data.absolutePath,
+        page,
+        pageSize
+      };
+
+    } catch (error) {
+      throw new Error(`获取文件列表失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 获取文件下载配置
+   * @param {string} daemonId 守护进程ID
+   * @param {string} instanceUuid 实例UUID
+   * @param {string} filePath 文件路径
+   * @returns {Promise<Object>} 下载配置
+   */
+  async getFileDownloadConfig(daemonId, instanceUuid, filePath) {
+    try {
+      const queryParams = new URLSearchParams({
+        file_name: filePath,
+        daemonId,
+        uuid: instanceUuid
+      });
+
+      const url = this.buildUrl(`/api/files/download?${queryParams}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: this.headers
+      });
+
+      const data = await this.handleResponse(response);
+      return {
+        password: data.password,
+        addr: data.addr
+      };
+    } catch (error) {
+      throw new Error(`获取文件下载配置失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 下载文件
+   * @param {string} addr 节点地址
+   * @param {string} password 下载密码
+   * @param {string} fileName 文件名
+   * @param {string} savePath 保存路径
+   * @returns {Promise<void>} 
+   */
+  async downloadFile(addr, password, fileName, savePath) {
+    try {
+      // 处理地址格式
+      let baseUrl = addr;
+      if (addr.startsWith('ws://')) {
+        baseUrl = addr.replace('ws://', 'http://');
+      } else if (addr.startsWith('ws')) {
+        baseUrl = addr.replace('ws', 'http://');
+      } else if (!addr.startsWith('http://') && !addr.startsWith('https://')) {
+        baseUrl = `http://${addr}`;
+      }
+
+      const url = `${baseUrl}/download/${password}/${encodeURIComponent(fileName)}`;
+      logger.debug(`[MCS API] 下载文件请求: ${url}`);
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+      }
+
+      // 创建写入流
+      const fileStream = fs.createWriteStream(savePath);
+
+      // 使用 pipeline 处理流
+      await new Promise((resolve, reject) => {
+        const stream = response.body.pipe(fileStream);
+        stream.on('finish', resolve);
+        stream.on('error', reject);
+      });
+
+    } catch (error) {
+      throw new Error(`下载文件失败: ${error.message}`);
     }
   }
 
