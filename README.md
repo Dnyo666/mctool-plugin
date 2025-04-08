@@ -6,6 +6,7 @@
 
 基于 Yunzai-Bot v3 的 Minecraft 服务器管理插件，支持服务器状态查询、玩家绑定、进群验证等功能。
 
+
 ## 提醒事项
 
 - 当前存在api问题而导致服务器状态被反复推送，不建议开启服务器状态推送，玩家上下线无关
@@ -13,6 +14,9 @@
 - 后续考虑给出自建api的解决方案(待办ing)
 
 - 当前已启用云端数据库，本地仅存该机器人的数据，如果有被他人绑定的账号，请联系插件开发者处理（进群：303104111）
+
+
+## 因学业和开发压力,短时间不能恢复mctool的开发,如有bug,请提交issue
 
 ## 功能介绍
 
@@ -146,7 +150,8 @@ pnpm install
 - `#mcmod下载 <序号/modid> [版本号] [加载器]` - 下载指定版本的Mod
 - `#mcmod下载 <版本序号>` - 下载版本列表中指定版本的Mod
 
-### MCManager功能
+### MCSManager功能
+> 如果仅需要mcsm功能，可前往[https://github.com/A1Panda/mcsmanager-plugin](https://github.com/A1Panda/mcsmanager-plugin)
 - `#mcs绑定 <URL> <Api_key>` - 绑定Mcs
 - `#mcs解绑` - 解除绑定Mcs
 - `#mcs绑定信息` - 查看自己账号的绑定信息
@@ -318,12 +323,15 @@ mod:
   - [ ] 优化错误处理
   - [x] 数据自动迁移同步
 - 功能：
-  - [x] littleskin绑定（加急中）
+  - [x] littleskin绑定
   - [ ] MUA高校联合绑定（咕咕咕）
   - [ ] 附魔计算器
   - [ ] 百科查询
   - [ ] 指令备忘录
   - [ ] 玩家在线状态查询
+  - [ ] 投影功能
+    - [ ] 投影上传保存，分类收藏
+    - [ ] 投影3D渲染预览，材料预览
   - [x] 玩家绑定信息云端
   - [x] 3D渲染皮肤（#mc信息）
   - [x] mc头像渲染(感谢Natsusomekeishi/MCCAG)
@@ -337,6 +345,8 @@ mod:
 ## 联系方式
 
 - QQ群: [303104111](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=gdLRKPbtdd23Tw9M0HthGaU-PRXFToFY&authKey=ULxjgIsrwBQt74OIgbozC8aztsuHYPNvQcpERBqGf9TvUwdO2myrJxhSZTx2kwdh&noverify=0&group_code=303104111)
+
+- 如有BUG，请务必提交issue，浅巷墨黎后续恢复开发后将逐一修复
 
 ## 贡献者
 
